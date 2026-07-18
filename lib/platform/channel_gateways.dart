@@ -7,7 +7,7 @@ import '../core/utils/id_gen.dart';
 import 'gateways.dart';
 
 /// 真实 OHOS 桥接实现。ArkTS 侧代码见 ohos/entry/src/main/ets/plugins/。
-/// ⚠️ 未真机验证（本机无 OHOS Flutter SDK 与设备）——见 docs/known-limitations.md。
+/// 已通过 HAP 编译；设备运行状态见 docs/testing.md。
 
 AppFailure _mapPlatformError(PlatformException e) {
   final code = switch (e.code) {

@@ -1,123 +1,109 @@
-# 原生集成指南（OHOS）
+# Native Integration
 
-> 状态更新：OHOS 工具链已在本机跑通，HAP 可构建，OCR/分享/代理提醒三条链
-> **已真实编译进 HAP**（详见 `docs/hap-bringup-report.md`）。本文覆盖：命令行构建、
-> **用 DevEco 打开 `ohos/` + 签名 + 跑模拟器**、各能力接线要点。运行期行为
-> （真机 OCR/分享/提醒触发）仍未真机验证，见 `docs/device-test-checklist.md`。
+## 1. Verified toolchain
 
-## 1. 工具链（已固定）
+- Desktop development: Homebrew Flutter 3.44.6.
+- HAP build: CPF-Flutter 3.35.8-ohos-1.0.1 at `.toolchains/flutter-ohos/`.
+- HarmonyOS SDK: DevEco Studio bundled 6.1.1 / API 24.
+- Application: `com.freshcue.app`, entry module `entry`, phone, arm64-v8a.
 
-- OHOS Flutter：<https://gitcode.com/CPF-Flutter/flutter_flutter> tag
-  `3.35.8-ohos-1.0.1`（Dart 3.9.2），安装于 `.toolchains/flutter-ohos`（gitignore）。
-- SDK：DevEco Studio 内置 **HarmonyOS 6.1.1 / API 24**（`/Applications/DevEco-Studio.app/Contents/sdk`）。
-- 构建工具：DevEco 内置 hvigor / ohpm / node v18。
-
-环境变量已写入 `~/.zshrc`（标记块 `FreshCue HarmonyOS Toolchain`），提供 `hflutter`
-别名（带国内镜像 + DevEco node v18，不污染全局）。新终端直接可用：
+Use the OHOS Flutter wrapper/alias for HAP builds:
 
 ```bash
-cd ~/Project/freshcue
 hflutter build hap --debug
-# 产物: ohos/entry/build/default/outputs/default/entry-default-unsigned.hap
-```
-
-全新环境的搭建步骤与精确版本矩阵见 `docs/hap-bringup-report.md` §1–3。
-
-## 2. 命令行构建 HAP
-
-```bash
-hflutter build hap --debug     # Debug，未签名
-# Release 需先在 DevEco 配置签名（见 §3），再：
 hflutter build hap --release
 ```
 
-`hflutter` 会经 `flutterHvigorPlugin`（根 `ohos/hvigorfile.ts` 已挂）自动先构建
-Dart 代码，再由 hvigor assembleHap。
+After `assembleHap` succeeds, an unsigned package is written to:
 
-## 3. 用 DevEco 打开 `ohos/` + 签名 + 跑模拟器
-
-### 3.1 打开正确的目录
-
-DevEco 靠工程根的 `build-profile.json5` / `oh-package.json5` / `AppScope/` 识别
-HarmonyOS 工程——这些在 **`ohos/` 子目录**里，不在仓库根。
-
-> DevEco → 打开项目 → 选择 **`<仓库根>/ohos`**（即 `$HOME/Project/freshcue/ohos`
-> 之类的本机路径；选仓库根会报「不是 OpenHarmony/HarmonyOS 项目」，因为根是 Flutter 工程）。
-
-已就绪、无需手动：
-- `ohos/local.properties`（机器相关，已 gitignore）指向 DevEco SDK 与 OHOS Flutter。
-- `compatibleSdkVersion` / `targetSdkVersion` = `6.1.1(24)`，匹配已装 SDK，
-  同步不会去下载其它 API 版本。
-- 根 hvigorfile 挂了 `flutterHvigorPlugin`——点 Run 会自动构建 Dart，不必先手动跑 flutter。
-
-### 3.2 配置调试签名（唯一必须手动的一步）
-
-模拟器/真机安装都需要签名的 HAP。`build-profile.json5` 的 `signingConfigs` 目前为空，
-由 DevEco 自动生成填充（需登录华为账号）：
-
-1. 菜单 **File → Project Structure（项目结构）→ Signing Configs**
-2. 勾选 **Automatically generate signature（自动生成签名）**
-3. 确定后 `signingConfigs` 会被填充；**私钥/证书不要提交 Git**
-   （`.gitignore` 已忽略 `ohos/**/signingConfigs/` 与 `*.p12/*.cer/*.p7b` 等）。
-
-### 3.3 启动模拟器并运行
-
-1. **Device Manager**（工具栏设备图标）启动已安装的模拟器（Apple Silicon 为 arm64，
-   与构建目标 `ohos-arm64` 一致）。
-2. 顶部工具栏选中该模拟器 → 点 **Run（▶）**。
-3. 首次 Run：DevEco 跑 hvigor sync + flutter build（引擎产物已缓存，不重新下载），
-   装签名后的 HAP 并启动。
-
-命令行安装校验（模拟器已启动时）：
-
-```bash
-HDC=/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/hdc
-$HDC list targets                       # 应列出模拟器
-$HDC install <签名后的.hap>              # 或直接在 DevEco 里 Run
+```text
+ohos/entry/build/default/outputs/default/entry-default-unsigned.hap
 ```
 
-### 3.4 验证原生能力
+Without `signingConfigs`, the Flutter command subsequently returns nonzero and asks for DevEco signing. This means “compiled and packaged, unsigned,” not “installable.”
 
-应用内「设置 → 关于 →（连点版本号）诊断页 → 原生能力握手」应显示
-`platform=ohos · API 24`，OCR/分享/代理提醒 `编译✓`，可用状态视设备/权限而定。
+When switching between desktop and OHOS Flutter, run `flutter clean` with the active toolchain if engine shader caches are incompatible.
 
-## 4. 各能力接线要点（与本仓库真实实现一致）
+## 2. DevEco open, sign and run
 
-### OCR（Core Vision）
-- `@kit.CoreVisionKit` → `@hms.ai.ocr.textRecognition.recognizeText(VisionInfo): Promise`。
-- 结果 `blocks[].lines[]` 用 **cornerPoints 多边形**，`OcrPlugin` 换算为 0~1 归一化包围盒。
-- **无逐行 confidence**：返回 null，不伪造（Dart 侧 `OcrResultBlock.confidence` 可空）。
-- 免权限；不可用时 Flutter 降级手动输入。
+1. Open the repository's `ohos/` subdirectory in DevEco Studio.
+2. Select **File → Project Structure → Signing Configs**.
+3. Enable **Automatically generate signature** and sign in with a Huawei account.
+4. Connect a compatible HarmonyOS NEXT device and confirm it appears with `hdc list targets`.
+5. Run from DevEco, or build/install a signed HAP using the OHOS Flutter/hdc tools.
 
-### 分享接收 + 图库
-- 图库：`photoAccessHelper.PhotoViewPicker`（系统 Picker，免权限）。
-- 分享接收：`module.json5` 声明 `ohos.want.action.sendData` skill（uri `scheme:file, utd:general.image`）；
-  `EntryAbility.onCreate/onNewWant` 分发 Want → `SharePlugin` 用
-  `systemShare.getSharedData(want)` 还原记录，URI 立即读为字节（不留授权），UUID 去重。
-- 这是 Want/Ability 级接收，非 ShareKit 发送 API。
+Never commit certificates, private keys, `.toolchains/`, `.hvigor/`, `build/`, or HAP artifacts.
 
-### 代理提醒（Reminder Agent）
-- 权限 `ohos.permission.PUBLISH_AGENT_REMINDER`（安装期授予）+ 运行时
-  `notificationManager.requestEnableNotification()`。
-- `reminderAgentManager.publishReminder(ReminderRequestCalendar)` 返回 reminderId（存 DB）。
-- **本机 SDK 的 `ActionButtonType` 仅 CLOSE/SNOOZE，无自定义按钮**：不做「完成/延后」
-  通知按钮；改用 `wantAgent(uri=freshcue://card/<id>)`，点击通知拉起
-  `EntryAbility` → 分发深链 → Flutter 打开卡片，在应用内完成/延后。
-- `getScheduledReminderIds` 返回空（本机 `getValidReminders` 不暴露 reminderId），
-  reconciliation 依赖 DB 存储的平台 ID。
+## 3. Plugin registration and channels
 
-### 实况窗（Live View Kit）
-- 需 AGC 权益；默认 feature flag 关闭，实现编译隔离在 `ohos-reference/`，不阻塞 HAP。
+`EntryAbility.ets` registers the generated Flutter plugins plus:
 
-## 5. 数据库（已接入，无需再改）
+| Plugin | Channel | Purpose |
+|---|---|---|
+| `CapabilitiesPlugin` | `freshcue/capabilities` | Report platform/API/bridge and per-kit status |
+| `SharePlugin` | `freshcue/share`, `freshcue/share/events` | Photo picker, cold/hot share delivery and deduplication |
+| `OcrPlugin` | `freshcue/ocr` | Core Vision and offline OCR routing |
+| `ReminderPlugin` | `freshcue/reminders`, `freshcue/reminders/events` | Permission, publish/cancel and notification deep links |
+| `FormPlugin` | `freshcue/forms` | Persist redacted snapshot and refresh active service cards |
 
-已在 `pubspec.yaml` 用 git 依赖引入 OHOS 适配 sqflite（CPF-Flutter/flutter_sqflite
-branch `br_v2.4.2_ohos` @ `1eefac74916ee14cab6b58da4d60a84153bcb758`），
-`sqflite_ohos` 随 `GeneratedPluginRegistrant` 编入 HAP。`lib/main.dart` bootstrap
-依据 capability handshake 选择：
+`EntryAbility.onCreate` dispatches the initial Want; `onNewWant` handles a hot-start Want. Supported routes:
 
-- OHOS（`caps.isOhos && filesDir != null`）→ `sqflite.databaseFactory` +
-  `<filesDir>/db/freshcue.db`，沙箱图片写 `<filesDir>/assets`。
-- 桌面/测试 → 内存仓库（Release 走不到此分支）。
+- `ohos.want.action.sendData` with image URI(s): system share import.
+- `freshcue://card/<id>`: notification/service-card deep link to card detail.
+- `freshcue://archive`: service-card fallback when no card ID is present.
 
-schema 版本 v2（ocr_blocks.confidence 可空的迁移已含冒烟测试）。
+Dart converts all `PlatformException.code` values to stable `FailureCode` values. Adding a channel method requires updating the Dart contract, ArkTS implementation, capability reporting and a contract test together.
+
+## 4. Offline OCR
+
+`OcrPlugin` first asks Core Vision `textRecognition.recognizeText`. It loads the native offline provider once and uses it when Core Vision is unavailable or recognition throws.
+
+Native components:
+
+- `ohos/entry/src/main/cpp/napi_init.cpp`: N-API module `offline_ocr`.
+- `offline_ocr.cpp`: image decode/preprocess, ncnn inference, CTC decode and line grouping.
+- `ppocrv5_dict.h`: PaddleOCR recognition character dictionary.
+- `third_party/ncnn-20260526-harmonyos/arm64-v8a/`: pinned HarmonyOS ncnn headers and static library.
+
+Packaged resources:
+
+- `PP_OCRv5_mobile_rec.ncnn.param`
+- `PP_OCRv5_mobile_rec.ncnn.bin`
+- `THIRD_PARTY_NOTICES.txt`, `APACHE-2.0.txt`, `BSD-3-Clause.txt`
+
+The model performs recognition; text-region proposals come from deterministic image preprocessing and connected-component grouping. Results are normalized to Flutter coordinates. Provider values are explicit: `coreVision`, `offline`, `mock`, or `none`. The bridge never labels offline output as Core Vision and never fabricates per-line confidence.
+
+A synthetic local smoke image was recognized as four expected Chinese lines by the same model/ncnn route. HarmonyOS runtime loading and camera/gallery image variability still require device verification.
+
+## 5. Share receiving
+
+The module declares a `sendData` skill for `general.image` URIs and accepts at most nine URIs. `SharePlugin` uses `systemShare.getSharedData(want)`, extracts the first image, converts it to bytes, and reports `extraCount` for remaining images. Cold and hot events carry an ID; consumed IDs are deduplicated across the ArkTS and Dart boundary.
+
+`PhotoViewPicker` provides the explicit gallery-import path. The app copies bytes into its sandbox immediately and does not retain URI permissions.
+
+## 6. Reminder Agent
+
+`ReminderPlugin` calls `@ohos.reminderAgentManager.publishReminder` with calendar reminders and stores the returned integer ID. Cancellation uses that ID. A stable 31-bit hash is used only for the notification ID field; it is not a platform reminder ID.
+
+Required permission: `ohos.permission.PUBLISH_AGENT_REMINDER`. The release manifest does not include `INTERNET`.
+
+The API 24 `ActionButtonType` supports system actions such as close/snooze, not an arbitrary custom “complete” button. FreshCue therefore opens `freshcue://card/<id>` and lets the user complete or snooze inside the app.
+
+## 7. Form Kit service card
+
+Form Kit files:
+
+- `ohos/entry/src/main/ets/form/FreshCueFormAbility.ets`: `FormExtensionAbility`; serves initial data from Preferences.
+- `ohos/entry/src/main/ets/form/pages/FreshCueCard.ets`: 2×4 ArkTS service-card UI.
+- `ohos/entry/src/main/resources/base/profile/form_config.json`: form declaration.
+- `FormPlugin.ets`: receives Flutter snapshots, stores JSON in Preferences, calls `formProvider.updateForm` for running `freshcue_cards` instances.
+
+Snapshot contract: at most three records `{id, title, timeLabel}`. `AppController` excludes sensitive cards and sends only current active, non-expired cards. Empty slots are overwritten during every update so removed cards do not remain visible. Tapping a row opens `freshcue://card/<id>`; tapping the empty state opens `freshcue://archive`.
+
+The Form Kit API surface and HAP compilation are verified. Adding the card, update delivery and deep-link behavior require device/launcher validation.
+
+## 8. API constraints and unsupported capability
+
+The app compiles against API 24. Direct project API use is below that level, but lowering `compatibleSdkVersion` has not been validated against the Flutter engine and installed SDK set; do not lower it without a device and multi-SDK compatibility run.
+
+Live View is intentionally absent. The local API 24 declarations describe system live-view notification content for system applications and expose no supported third-party create/publish route equivalent to the former `LiveViewGateway`. Do not reintroduce a placeholder, Mock-success path or speculative channel. Reconsider only with documented entitlement and an official usable API.

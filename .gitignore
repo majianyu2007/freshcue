@@ -53,12 +53,6 @@ ohos/**/signingConfigs/
 local.config.json
 tool/local.sh
 
-# ML 中间产物
-ml/output/
-ml/*.ms
-ml/*.onnx
-ml/*.ckpt
-ml/__pycache__/
 
 # 本地 OHOS Flutter 工具链（数 GB，不入库）
 .toolchains/

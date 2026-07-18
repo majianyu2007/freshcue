@@ -1,5 +1,5 @@
 /// 脱敏工具：日志与崩溃信息中的敏感文本处理。
-/// 规则见 docs/privacy-design.md。
+/// 规则见 docs/architecture.md 的隐私与一致性不变量。
 class Redactor {
   Redactor._();
 

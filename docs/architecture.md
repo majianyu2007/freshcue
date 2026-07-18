@@ -1,54 +1,94 @@
-# 架构
+# Architecture
 
-## 数据流（核心闭环）
+## 1. System boundary
 
-```
-系统分享 / 图库导入
-   │  (ArkTS SharePlugin：Want→字节，去重，冷/热启动)
-   ▼
-ImageAssetService  ──沙箱复制、MIME 魔数校验、SHA-256、缩略图
-   ▼
-OcrGateway (Core Vision / Mock)  ──文本块 + 归一化坐标
-   ▼
-ScreenshotParser（纯 Dart，本项目自研核心）
-   span 提取 → 归一化/年份推断 → 角色分类 → 分类/字段提取 → ParsedDraft
-   ▼
-ReviewPage（确认/纠错，用户确认前不建提醒）
-   ▼
-CardService.confirmCard  ──卡片+计划+实例落库 → ReminderGateway 调度
-   ▼
-Reminder Agent（系统代理提醒）──通知行为 complete/snooze/view_source
-   ▼
-FreshnessPolicy（派生状态，不落库）──到期自动进过期箱
+FreshCue is a local-first Flutter application with a narrow HarmonyOS bridge. Flutter owns product state, parsing, persistence orchestration, and UI. ArkTS/C++ owns APIs unavailable to portable Dart: system share receiving, OCR, Reminder Agent, and Form Kit.
+
+```mermaid
+flowchart LR
+  Share[Gallery / system share] --> Asset[ImageAssetService]
+  Asset --> OCR[OcrGateway]
+  OCR --> Parser[ScreenshotParser]
+  Parser --> Review[ReviewPage]
+  Review --> Service[CardService]
+  Service --> DB[(SQLite)]
+  Service --> Reminder[ReminderGateway]
+  Service --> Controller[AppController]
+  Controller --> UI[Home / detail / archive]
+  Controller --> Form[FormGateway]
 ```
 
-## 分层
+No account, cloud service, analytics, or network permission is part of the system.
 
-| 层 | 目录 | 规则 |
+## 2. Layers
+
+| Layer | Responsibility | May depend on |
 |---|---|---|
-| core | `lib/core/` | Clock/Result/AppFailure/日志脱敏/ID。无 Flutter 依赖（logging 除外） |
-| domain | `lib/domain/` | 实体、枚举、解析器、策略、仓库接口。**纯 Dart，无平台依赖** |
-| data | `lib/data/` | SQL/内存仓库、图片资产、CardService 编排 |
-| platform | `lib/platform/` | 4 个 Gateway 接口 + Channel 实现 + Mock + Registry |
-| app/features | `lib/app/ lib/features/` | ChangeNotifier 控制器 + 页面。页面不直接写 SQL |
+| `lib/core/` | Time abstraction, results/errors, logging/redaction, IDs | Dart SDK and lightweight libraries |
+| `lib/domain/` | Entities, parser, freshness and reminder policies | `core` only |
+| `lib/data/` | Repository implementations, SQLite, assets, orchestration | `core`, `domain`, platform contracts |
+| `lib/platform/` | Gateway contracts, MethodChannel and Mock adapters | `core`, `domain`, Flutter services |
+| `lib/app/` | Composition, controller, route/state coordination | all inner layers |
+| `lib/features/` | Flutter pages and user interactions | app/domain presentation APIs |
+| `ohos/` | HarmonyOS Ability, ArkTS plugins, C++ OCR | HarmonyOS SDK and Flutter OHOS engine |
 
-## Flutter / ArkTS 边界
+Pages never write SQL or call ArkTS APIs directly. `CardService` owns cross-repository/platform transactions. `AppController` owns UI-visible state and publishes read-only service-card snapshots.
 
-- Flutter：全部 UI、解析、存储决策、提醒意图管理（事实来源是数据库）。
-- ArkTS（`ohos/entry/src/main/ets/plugins/`）：仅 4 件事 —— Core Vision OCR、
-  分享接收/图库 Picker、代理提醒发布/取消/行为回传、实况窗。无 ArkUI 页面。
-- 契约：`freshcue/ocr`、`freshcue/share`(+events)、`freshcue/reminders`(+events)、
-  `freshcue/live_view`；错误一律映射稳定错误码（`channel_gateways.dart`）。
+## 3. Import and parse flow
 
-## 关键设计决策
+1. `ShareGateway` returns bytes and source metadata from a picker or incoming Want.
+2. `ImageAssetService` validates image magic bytes, computes SHA-256, deduplicates, writes an unpredictable sandbox filename, and creates a thumbnail.
+3. `OcrGateway` returns normalized text blocks. On HarmonyOS, `OcrPlugin` tries Core Vision, then offline PP-OCRv5/ncnn when Core Vision is unavailable or fails.
+4. `ScreenshotParser` runs deterministic stages:
+   - `TimeSpanExtractor`: locate absolute, relative, weekday and range expressions.
+   - `DateNormalizer`: resolve against capture time; handle missing years, cross-year and leap-year cases.
+   - `RoleClassifier`: score semantic roles by nearby keywords and distance.
+   - `CategoryClassifier` and `FieldExtractor`: infer card type, title, location and temporary secret.
+   - aggregation: build a `ParsedDraft` with candidates and evidence block IDs.
+5. `ReviewPage` keeps every field editable and requires explicit confirmation.
+6. `CardService.confirmCard` saves card/OCR/reminder intent, schedules platform instances, and reports partial scheduling failures without losing the card.
+7. `AppController.refresh` recomputes derived freshness, then sends up to three non-sensitive active-card snapshots through `FormGateway`.
 
-1. **可注入 Clock**：领域层禁止 `DateTime.now()`；测试用 `FixedClock` 冻结时间。
-2. **派生状态不落库**：fresh/upcoming/urgent/expired 由 `FreshnessPolicy` 实时计算。
-3. **Plan/Instance 分离**：`ReminderPlan` 是意图（截止前 2 小时），
-   `ReminderInstance` 是绝对触发时间 + 平台 ID + 状态。编辑时间 = 取消全部
-   平台提醒 → 重新展开 → 原子替换实例。
-4. **启动 reconciliation**：清理过期 scheduled 实例、为缺平台 ID 的未来实例补建。
-5. **Mock 防线**：`PlatformRegistry` 在 Release 断言禁止 Mock；Debug 下 Mock
-   激活时 UI 常驻黄色横幅。
-6. **数据库注入**：仓库编码到 `sqflite_common` API；测试注入
-   `sqflite_common_ffi`，OHOS 真机注入 openharmony-sig sqflite 的 factory。
+## 4. Lifecycle and reminder model
+
+Stored card states: `draft`, `active`, `completed`, `archived`.
+
+Derived states are evaluated at read time by `FreshnessPolicy`: `fresh`, `upcoming`, `urgent`, `expired`. They are never persisted.
+
+`ReminderPlan` records intent such as “two hours before deadline.” `ReminderInstance` records a concrete trigger time, platform ID and execution status. `ReminderPolicy` expands plans while enforcing:
+
+- no reminders in the past;
+- deduplication at equal trigger times;
+- quiet-hours adjustment for non-urgent reminders;
+- independent failure handling per instance;
+- snooze as a new instance linked to its source.
+
+Editing a card time cancels old platform reminders before rebuilding instances. If rebuilding fails, successfully created platform reminders are cancelled and repository state is rolled back. Deletion cancels reminders and removes card, OCR, source metadata, sandbox image and thumbnail.
+
+## 5. Platform contracts
+
+Gateway contracts in `lib/platform/gateways.dart`:
+
+- `OcrGateway`: image bytes → `OcrResult`, including explicit provider identity.
+- `ShareGateway`: picker, initial share, hot-start share event stream.
+- `ReminderGateway`: permission, schedule/cancel, notification action events.
+- `FormGateway`: redacted card snapshot publication.
+
+Channel names are `freshcue/capabilities`, `freshcue/ocr`, `freshcue/share`, `freshcue/share/events`, `freshcue/reminders`, `freshcue/reminders/events`, and `freshcue/forms`.
+
+`PlatformCapabilities` distinguishes `compiled`, `available`, `reason`, and provider. Unknown or malformed bridge values fail closed. Release builds cannot enable Mock gateways. OHOS persistence selection depends on `Platform.operatingSystem` and a valid sandbox path, not the capability handshake.
+
+## 6. Error, privacy and consistency invariants
+
+- Cross-layer failures use `AppFailure` and stable `FailureCode`; UI shows `userMessage`, not raw exceptions.
+- Domain time comes from injected `Clock`; tests use `FixedClock`.
+- `IdGen` uses secure random 128-bit IDs for records and asset names.
+- `AppLog` redacts phone numbers, identity/bank numbers, URL query values and secrets.
+- OCR engine confidence and parser confidence are separate. Missing engine confidence remains `null`.
+- Sensitive cards are excluded from Form Kit snapshots; notification payloads hide their content.
+- The database is the source of truth for reminder intent; Reminder Agent is the executor. Startup reconciliation repairs stale instance status and missing platform IDs.
+- SQLite migrations are append-only; current schema version is 2.
+
+## 7. State management
+
+`AppController` is one explicit `ChangeNotifier`. It owns active/expired lists, import stage, pending draft, capability state, routes from notification actions, and Form Kit publication. This is deliberate: the state graph is small, dependencies are constructor-injected, and adding a framework would duplicate existing composition without improving isolation.
