@@ -19,7 +19,6 @@ import { CapabilityRegistry } from './CapabilitiesPlugin';
 
 interface NativeOcrBlock {
   text: string;
-  confidence: number;
   left: number;
   top: number;
   right: number;
@@ -93,11 +92,19 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
       return false;
     }
     try {
-      const param = await this.resources.getRawFileContent(
+      const detParam = await this.resources.getRawFileContent(
+        'ocr/PP_OCRv5_mobile_det.ncnn.param');
+      const detModel = await this.resources.getRawFileContent(
+        'ocr/PP_OCRv5_mobile_det.ncnn.bin');
+      const recParam = await this.resources.getRawFileContent(
         'ocr/PP_OCRv5_mobile_rec.ncnn.param');
-      const model = await this.resources.getRawFileContent(
+      const recModel = await this.resources.getRawFileContent(
         'ocr/PP_OCRv5_mobile_rec.ncnn.bin');
-      return offlineOcr.loadModel(param.buffer as ArrayBuffer, model.buffer as ArrayBuffer);
+      return offlineOcr.loadModel(
+        detParam.buffer as ArrayBuffer,
+        detModel.buffer as ArrayBuffer,
+        recParam.buffer as ArrayBuffer,
+        recModel.buffer as ArrayBuffer);
     } catch (_e) {
       return false;
     }
@@ -116,8 +123,12 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
     try {
       file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
       source = image.createImageSource(file.fd);
+      const sourceInfo = await source.getImageInfo();
+      const decodeSize = OcrPlugin.boundedDecodeSize(
+        sourceInfo.size.width, sourceInfo.size.height);
       pixelMap = await source.createPixelMap({
         desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
+        desiredSize: decodeSize,
       });
       const info = await pixelMap.getImageInfo();
       const width = info.size.width;
@@ -210,7 +221,6 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
     const blocks: Array<Record<string, Object>> = nativeBlocks.map(
       (block: NativeOcrBlock): Record<string, Object> => ({
         'text': block.text,
-        'confidence': block.confidence,
         'left': block.left,
         'top': block.top,
         'right': block.right,
@@ -237,6 +247,20 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
       'blocks': blocks,
       'engine': provider,
       'durationMs': Date.now() - start,
+    };
+  }
+
+  private static boundedDecodeSize(width: number, height: number): image.Size {
+    const maxLongSide = 4096;
+    const maxPixels = 6 * 1024 * 1024;
+    const scale = Math.min(
+      1,
+      maxLongSide / Math.max(width, height),
+      Math.sqrt(maxPixels / (width * height)),
+    );
+    return {
+      width: Math.max(1, Math.floor(width * scale)),
+      height: Math.max(1, Math.floor(height * scale)),
     };
   }
 

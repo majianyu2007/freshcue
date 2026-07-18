@@ -10,15 +10,16 @@ namespace freshcue {
 
 struct OcrBlock {
     std::string text;
-    float confidence;
     float left;
     float top;
     float right;
     float bottom;
 };
 
-bool loadOfflineModel(const uint8_t* param, size_t paramSize,
-                      const uint8_t* model, size_t modelSize);
+bool loadOfflineModels(const uint8_t* detParam, size_t detParamSize,
+                       const uint8_t* detModel, size_t detModelSize,
+                       const uint8_t* recParam, size_t recParamSize,
+                       const uint8_t* recModel, size_t recModelSize);
 bool offlineModelReady();
 std::vector<OcrBlock> recognizeOffline(const uint8_t* rgba, int width, int height);
 

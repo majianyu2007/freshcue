@@ -1,241 +1,197 @@
 // FreshCue offline OCR provider.
-// PP-OCRv5 recognition model conversion and character dictionary are derived
-// from nihui/ncnn-android-ppocrv5 (BSD-3-Clause). The model originates from
-// PaddleOCR (Apache-2.0). See the packaged THIRD_PARTY_NOTICES.txt.
+// PP-OCRv5 detector/recognizer models and postprocessing are derived from
+// nihui/ncnn-android-ppocrv5 (BSD-3-Clause); models originate from PaddleOCR
+// (Apache-2.0). See the packaged THIRD_PARTY_NOTICES.txt.
+
+#include "offline_ocr.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <mutex>
-#include <string>
+#include <numeric>
 #include <utility>
 #include <vector>
 
-#include "cpu.h"
-#include "net.h"
-#include "offline_ocr.h"
-#include "ppocrv5_dict.h"
+#include <opencv2/core/core.hpp>
+
+#include "ppocrv5.h"
 
 namespace freshcue {
-
-
 namespace {
 
-struct Crop {
-    int left;
-    int top;
-    int right;
-    int bottom;
-};
+constexpr int kTileSize = 1280;
+constexpr int kTileOverlap = 192;
+constexpr size_t kMaxDetectedRegions = 512;
 
-ncnn::Net g_recognizer;
-std::vector<unsigned char> g_param;
-std::vector<unsigned char> g_model;
+PPOCRv5 g_engine;
+std::vector<unsigned char> g_detParam;
+std::vector<unsigned char> g_detModel;
+std::vector<unsigned char> g_recParam;
+std::vector<unsigned char> g_recModel;
 std::mutex g_mutex;
 bool g_ready = false;
 
-inline uint8_t luminance(const uint8_t* pixel) {
-    return static_cast<uint8_t>((77 * pixel[0] + 150 * pixel[1] + 29 * pixel[2]) >> 8);
+std::vector<int> tileStarts(int length) {
+    if (length <= kTileSize) {
+        return {0};
+    }
+    const int stride = kTileSize - kTileOverlap;
+    std::vector<int> starts;
+    for (int start = 0; start + kTileSize < length; start += stride) {
+        starts.push_back(start);
+    }
+    const int finalStart = length - kTileSize;
+    if (starts.empty() || starts.back() != finalStart) {
+        starts.push_back(finalStart);
+    }
+    return starts;
 }
 
-uint8_t estimateBackground(const uint8_t* rgba, int width, int height) {
-    std::vector<uint8_t> samples;
-    const int stepX = std::max(1, width / 64);
-    const int stepY = std::max(1, height / 64);
-    samples.reserve(256);
-    for (int x = 0; x < width; x += stepX) {
-        samples.push_back(luminance(rgba + static_cast<size_t>(x) * 4));
-        samples.push_back(luminance(rgba + (static_cast<size_t>(height - 1) * width + x) * 4));
-    }
-    for (int y = 0; y < height; y += stepY) {
-        samples.push_back(luminance(rgba + static_cast<size_t>(y) * width * 4));
-        samples.push_back(luminance(rgba + (static_cast<size_t>(y) * width + width - 1) * 4));
-    }
-    const auto middle = samples.begin() + samples.size() / 2;
-    std::nth_element(samples.begin(), middle, samples.end());
-    return *middle;
+cv::Rect2f clippedBounds(const OcrObject& object, int width, int height) {
+    return object.rrect.boundingRect2f() &
+        cv::Rect2f(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
 }
 
-std::vector<Crop> detectTextLines(const uint8_t* rgba, int width, int height) {
-    const uint8_t background = estimateBackground(rgba, width, height);
-    constexpr int kContrast = 32;
-    const int minRowInk = std::max(2, width / 300);
-    const int joinGap = std::max(2, height / 800);
-    const int minHeight = std::max(6, height / 500);
-
-    std::vector<uint8_t> gray(static_cast<size_t>(width) * height);
-    std::vector<int> rowInk(height, 0);
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            const size_t index = static_cast<size_t>(y) * width + x;
-            const uint8_t value = luminance(rgba + index * 4);
-            gray[index] = value;
-            if (std::abs(static_cast<int>(value) - background) >= kContrast) {
-                ++rowInk[y];
-            }
-        }
+float intersectionOverUnion(const cv::Rect2f& first, const cv::Rect2f& second) {
+    const cv::Rect2f intersection = first & second;
+    if (intersection.empty()) {
+        return 0.0f;
     }
+    const float unionArea = first.area() + second.area() - intersection.area();
+    return unionArea <= 0.0f ? 0.0f : intersection.area() / unionArea;
+}
 
-    std::vector<std::pair<int, int>> bands;
-    int start = -1;
-    int lastActive = -1;
-    for (int y = 0; y < height; ++y) {
-        if (rowInk[y] >= minRowInk) {
-            if (start < 0) {
-                start = y;
-            }
-            lastActive = y;
-        } else if (start >= 0 && y - lastActive > joinGap) {
-            if (lastActive - start + 1 >= minHeight) {
-                bands.emplace_back(start, lastActive);
-            }
-            start = -1;
-            lastActive = -1;
-        }
+void appendUnique(std::vector<OcrObject>& objects, OcrObject candidate,
+                  int width, int height) {
+    const cv::Rect2f candidateBounds = clippedBounds(candidate, width, height);
+    if (candidateBounds.width < 2.0f || candidateBounds.height < 2.0f) {
+        return;
     }
-    if (start >= 0 && lastActive - start + 1 >= minHeight) {
-        bands.emplace_back(start, lastActive);
-    }
-
-    std::vector<Crop> crops;
-    crops.reserve(bands.size());
-    for (const auto& band : bands) {
-        const int bandHeight = band.second - band.first + 1;
-        const int minColInk = std::max(1, bandHeight / 8);
-        int left = width;
-        int right = -1;
-        for (int x = 0; x < width; ++x) {
-            int ink = 0;
-            for (int y = band.first; y <= band.second; ++y) {
-                const uint8_t value = gray[static_cast<size_t>(y) * width + x];
-                if (std::abs(static_cast<int>(value) - background) >= kContrast) {
-                    ++ink;
-                }
-            }
-            if (ink >= minColInk) {
-                left = std::min(left, x);
-                right = std::max(right, x);
-            }
-        }
-        if (right < left || right - left + 1 < bandHeight / 2) {
+    for (OcrObject& existing : objects) {
+        if (intersectionOverUnion(candidateBounds, clippedBounds(existing, width, height)) < 0.35f) {
             continue;
         }
-        const int xPad = std::max(2, bandHeight / 4);
-        const int yPad = std::max(2, bandHeight / 6);
-        crops.push_back({
-            std::max(0, left - xPad),
-            std::max(0, band.first - yPad),
-            std::min(width, right + xPad + 1),
-            std::min(height, band.second + yPad + 1),
+        if (candidate.detectionScore > existing.detectionScore) {
+            existing = std::move(candidate);
+        }
+        return;
+    }
+    if (objects.size() < kMaxDetectedRegions) {
+        objects.push_back(std::move(candidate));
+    }
+}
+
+void detectTiles(const cv::Mat& rgba, std::vector<OcrObject>& objects) {
+    const std::vector<int> xStarts = tileStarts(rgba.cols);
+    const std::vector<int> yStarts = tileStarts(rgba.rows);
+    for (int top : yStarts) {
+        for (int left : xStarts) {
+            const int tileWidth = std::min(kTileSize, rgba.cols - left);
+            const int tileHeight = std::min(kTileSize, rgba.rows - top);
+            const cv::Mat tile = rgba(cv::Rect(left, top, tileWidth, tileHeight));
+            std::vector<OcrObject> detected;
+            if (!g_engine.detect(tile, detected)) {
+                continue;
+            }
+            for (OcrObject& object : detected) {
+                object.rrect.center.x += left;
+                object.rrect.center.y += top;
+                appendUnique(objects, std::move(object), rgba.cols, rgba.rows);
+            }
+        }
+    }
+}
+
+std::vector<OcrObject> sortReadingOrder(std::vector<OcrObject> objects) {
+    std::stable_sort(objects.begin(), objects.end(), [](const OcrObject& first,
+                                                        const OcrObject& second) {
+        return first.rrect.center.y < second.rrect.center.y;
+    });
+
+    struct Row {
+        float centerY;
+        float textHeight;
+        std::vector<OcrObject> objects;
+    };
+    std::vector<Row> rows;
+    for (OcrObject& object : objects) {
+        const float textHeight = std::max(1.0f, object.rrect.size.width);
+        Row* nearest = nullptr;
+        float nearestDistance = 0.0f;
+        for (Row& row : rows) {
+            const float distance = std::abs(object.rrect.center.y - row.centerY);
+            const float tolerance = std::max(10.0f, 0.6f * std::max(textHeight, row.textHeight));
+            if (distance <= tolerance && (nearest == nullptr || distance < nearestDistance)) {
+                nearest = &row;
+                nearestDistance = distance;
+            }
+        }
+        if (nearest == nullptr) {
+            rows.push_back({object.rrect.center.y, textHeight, {std::move(object)}});
+            continue;
+        }
+        const float count = static_cast<float>(nearest->objects.size());
+        nearest->centerY = (nearest->centerY * count + object.rrect.center.y) / (count + 1.0f);
+        nearest->textHeight = std::max(nearest->textHeight, textHeight);
+        nearest->objects.push_back(std::move(object));
+    }
+
+    std::sort(rows.begin(), rows.end(), [](const Row& first, const Row& second) {
+        return first.centerY < second.centerY;
+    });
+    std::vector<OcrObject> ordered;
+    ordered.reserve(objects.size());
+    for (Row& row : rows) {
+        std::sort(row.objects.begin(), row.objects.end(), [](const OcrObject& first,
+                                                            const OcrObject& second) {
+            return first.rrect.center.x < second.rrect.center.x;
         });
+        for (OcrObject& object : row.objects) {
+            ordered.push_back(std::move(object));
+        }
     }
-    return crops;
+    return ordered;
 }
 
-bool recognizeCrop(const uint8_t* rgba, int imageWidth, const Crop& crop, OcrBlock& result) {
-    const int cropWidth = crop.right - crop.left;
-    const int cropHeight = crop.bottom - crop.top;
-    if (cropWidth <= 0 || cropHeight <= 0) {
-        return false;
-    }
-
-    std::vector<uint8_t> rgb(static_cast<size_t>(cropWidth) * cropHeight * 3);
-    for (int y = 0; y < cropHeight; ++y) {
-        const uint8_t* source = rgba +
-            (static_cast<size_t>(crop.top + y) * imageWidth + crop.left) * 4;
-        uint8_t* destination = rgb.data() + static_cast<size_t>(y) * cropWidth * 3;
-        for (int x = 0; x < cropWidth; ++x) {
-            destination[x * 3] = source[x * 4];
-            destination[x * 3 + 1] = source[x * 4 + 1];
-            destination[x * 3 + 2] = source[x * 4 + 2];
-        }
-    }
-
-    constexpr int targetHeight = 48;
-    const int targetWidth = std::clamp(
-        static_cast<int>(std::round(static_cast<double>(cropWidth) * targetHeight / cropHeight)),
-        targetHeight,
-        1280);
-    ncnn::Mat input = ncnn::Mat::from_pixels_resize(
-        rgb.data(), ncnn::Mat::PIXEL_RGB2BGR,
-        cropWidth, cropHeight, targetWidth, targetHeight);
-    const float meanValues[3] = {127.5f, 127.5f, 127.5f};
-    const float normValues[3] = {1.0f / 127.5f, 1.0f / 127.5f, 1.0f / 127.5f};
-    input.substract_mean_normalize(meanValues, normValues);
-
-    ncnn::Extractor extractor = g_recognizer.create_extractor();
-    if (extractor.input("in0", input) != 0) {
-        return false;
-    }
-    ncnn::Mat output;
-    if (extractor.extract("out0", output) != 0 || output.w <= 0 || output.h <= 0) {
-        return false;
-    }
-
-    std::string text;
-    float confidenceSum = 0.0f;
-    int emitted = 0;
-    int lastToken = 0;
-    for (int timestep = 0; timestep < output.h; ++timestep) {
-        const float* scores = output.row(timestep);
-        int token = 0;
-        float bestScore = scores[0];
-        for (int index = 1; index < output.w; ++index) {
-            if (scores[index] > bestScore) {
-                bestScore = scores[index];
-                token = index;
-            }
-        }
-        if (token == lastToken) {
-            continue;
-        }
-        lastToken = token;
-        if (token <= 0 || token - 1 >= character_dict_size) {
-            continue;
-        }
-        text += character_dict[token - 1];
-        confidenceSum += bestScore;
-        ++emitted;
-    }
-
-    if (text.empty() || emitted == 0) {
-        return false;
-    }
-    const float confidence = confidenceSum / emitted;
-    if (confidence < 0.25f) {
-        return false;
-    }
-    result.text = std::move(text);
-    result.confidence = confidence;
-    return true;
+void clearModels() {
+    g_engine.clear();
+    g_detParam.clear();
+    g_detModel.clear();
+    g_recParam.clear();
+    g_recModel.clear();
+    g_ready = false;
 }
 
 }  // namespace
 
-bool loadOfflineModel(const uint8_t* param, size_t paramSize,
-                      const uint8_t* model, size_t modelSize) {
-    if (param == nullptr || model == nullptr || paramSize == 0 || modelSize == 0) {
+bool loadOfflineModels(const uint8_t* detParam, size_t detParamSize,
+                       const uint8_t* detModel, size_t detModelSize,
+                       const uint8_t* recParam, size_t recParamSize,
+                       const uint8_t* recModel, size_t recModelSize) {
+    if (detParam == nullptr || detModel == nullptr || recParam == nullptr || recModel == nullptr ||
+        detParamSize == 0 || detModelSize == 0 || recParamSize == 0 || recModelSize == 0) {
         return false;
     }
+
     std::lock_guard<std::mutex> lock(g_mutex);
     if (g_ready) {
         return true;
     }
-    g_param.assign(param, param + paramSize);
-    g_param.push_back(0);
-    g_model.assign(model, model + modelSize);
 
-    g_recognizer.opt.num_threads = std::clamp(ncnn::get_big_cpu_count(), 1, 4);
-    g_recognizer.opt.use_fp16_packed = true;
-    g_recognizer.opt.use_fp16_storage = true;
-    g_recognizer.opt.use_fp16_arithmetic = true;
-    if (g_recognizer.load_param_mem(reinterpret_cast<const char*>(g_param.data())) != 0 ||
-        g_recognizer.load_model(g_model.data()) == 0) {
-        g_recognizer.clear();
-        g_param.clear();
-        g_model.clear();
+    g_detParam.assign(detParam, detParam + detParamSize);
+    g_detParam.push_back(0);
+    g_detModel.assign(detModel, detModel + detModelSize);
+    g_recParam.assign(recParam, recParam + recParamSize);
+    g_recParam.push_back(0);
+    g_recModel.assign(recModel, recModel + recModelSize);
+
+    if (!g_engine.load(reinterpret_cast<const char*>(g_detParam.data()), g_detModel.data(),
+                       reinterpret_cast<const char*>(g_recParam.data()), g_recModel.data())) {
+        clearModels();
         return false;
     }
+    g_engine.setTargetSize(960);
     g_ready = true;
     return true;
 }
@@ -249,24 +205,34 @@ std::vector<OcrBlock> recognizeOffline(const uint8_t* rgba, int width, int heigh
     if (rgba == nullptr || width <= 0 || height <= 0) {
         return {};
     }
+
     std::lock_guard<std::mutex> lock(g_mutex);
     if (!g_ready) {
         return {};
     }
 
-    const std::vector<Crop> crops = detectTextLines(rgba, width, height);
+    const cv::Mat image(height, width, CV_8UC4, const_cast<uint8_t*>(rgba));
+    std::vector<OcrObject> detected;
+    detectTiles(image, detected);
+    std::vector<OcrObject> ordered = sortReadingOrder(std::move(detected));
+
     std::vector<OcrBlock> blocks;
-    blocks.reserve(crops.size());
-    for (const Crop& crop : crops) {
-        OcrBlock block{};
-        if (!recognizeCrop(rgba, width, crop, block)) {
+    blocks.reserve(ordered.size());
+    for (OcrObject& object : ordered) {
+        if (!g_engine.recognize(image, object)) {
             continue;
         }
-        block.left = static_cast<float>(crop.left) / width;
-        block.top = static_cast<float>(crop.top) / height;
-        block.right = static_cast<float>(crop.right) / width;
-        block.bottom = static_cast<float>(crop.bottom) / height;
-        blocks.push_back(std::move(block));
+        const cv::Rect2f bounds = clippedBounds(object, width, height);
+        if (bounds.empty()) {
+            continue;
+        }
+        blocks.push_back({
+            std::move(object.text),
+            bounds.x / width,
+            bounds.y / height,
+            (bounds.x + bounds.width) / width,
+            (bounds.y + bounds.height) / height,
+        });
     }
     return blocks;
 }

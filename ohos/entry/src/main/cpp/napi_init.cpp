@@ -24,21 +24,29 @@ napi_value booleanValue(napi_env env, bool value) {
 }
 
 napi_value LoadModel(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value argv[2] = {nullptr, nullptr};
+    size_t argc = 4;
+    napi_value argv[4] = {nullptr, nullptr, nullptr, nullptr};
     napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
-    if (argc != 2) {
+    if (argc != 4) {
         return booleanValue(env, false);
     }
-    uint8_t* param = nullptr;
-    uint8_t* model = nullptr;
-    size_t paramSize = 0;
-    size_t modelSize = 0;
-    if (!getArrayBuffer(env, argv[0], param, paramSize) ||
-        !getArrayBuffer(env, argv[1], model, modelSize)) {
+    uint8_t* detParam = nullptr;
+    uint8_t* detModel = nullptr;
+    uint8_t* recParam = nullptr;
+    uint8_t* recModel = nullptr;
+    size_t detParamSize = 0;
+    size_t detModelSize = 0;
+    size_t recParamSize = 0;
+    size_t recModelSize = 0;
+    if (!getArrayBuffer(env, argv[0], detParam, detParamSize) ||
+        !getArrayBuffer(env, argv[1], detModel, detModelSize) ||
+        !getArrayBuffer(env, argv[2], recParam, recParamSize) ||
+        !getArrayBuffer(env, argv[3], recModel, recModelSize)) {
         return booleanValue(env, false);
     }
-    return booleanValue(env, freshcue::loadOfflineModel(param, paramSize, model, modelSize));
+    return booleanValue(env, freshcue::loadOfflineModels(
+        detParam, detParamSize, detModel, detModelSize,
+        recParam, recParamSize, recModel, recModelSize));
 }
 
 napi_value IsReady(napi_env env, napi_callback_info) {
@@ -49,7 +57,8 @@ struct RecognitionWork {
     napi_env env = nullptr;
     napi_async_work work = nullptr;
     napi_deferred deferred = nullptr;
-    std::vector<uint8_t> pixels;
+    napi_ref pixelsRef = nullptr;
+    const uint8_t* pixels = nullptr;
     int width = 0;
     int height = 0;
     std::vector<freshcue::OcrBlock> blocks;
@@ -62,7 +71,7 @@ void ExecuteRecognition(napi_env, void* raw) {
         work->error = "model_not_ready";
         return;
     }
-    work->blocks = freshcue::recognizeOffline(work->pixels.data(), work->width, work->height);
+    work->blocks = freshcue::recognizeOffline(work->pixels, work->width, work->height);
 }
 
 void setNamedString(napi_env env, napi_value object, const char* name, const std::string& value) {
@@ -85,6 +94,10 @@ void setNamedInt(napi_env env, napi_value object, const char* name, int value) {
 
 void CompleteRecognition(napi_env env, napi_status status, void* raw) {
     std::unique_ptr<RecognitionWork> work(static_cast<RecognitionWork*>(raw));
+    if (work->pixelsRef != nullptr) {
+        napi_delete_reference(env, work->pixelsRef);
+        work->pixelsRef = nullptr;
+    }
     if (status != napi_ok || !work->error.empty()) {
         napi_value message = nullptr;
         napi_value error = nullptr;
@@ -103,7 +116,6 @@ void CompleteRecognition(napi_env env, napi_status status, void* raw) {
         napi_value item = nullptr;
         napi_create_object(env, &item);
         setNamedString(env, item, "text", block.text);
-        setNamedDouble(env, item, "confidence", block.confidence);
         setNamedDouble(env, item, "left", block.left);
         setNamedDouble(env, item, "top", block.top);
         setNamedDouble(env, item, "right", block.right);
@@ -154,7 +166,15 @@ napi_value Recognize(napi_env env, napi_callback_info info) {
     work->deferred = deferred;
     work->width = width;
     work->height = height;
-    work->pixels.assign(pixels, pixels + pixelSize);
+    work->pixels = pixels;
+    if (napi_create_reference(env, argv[0], 1, &work->pixelsRef) != napi_ok) {
+        napi_value message = nullptr;
+        napi_value error = nullptr;
+        napi_create_string_utf8(env, "pixel_reference_failed", NAPI_AUTO_LENGTH, &message);
+        napi_create_error(env, nullptr, message, &error);
+        napi_reject_deferred(env, deferred, error);
+        return promise;
+    }
 
     napi_value resourceName = nullptr;
     napi_create_string_utf8(env, "FreshCueOfflineOcr", NAPI_AUTO_LENGTH, &resourceName);
@@ -169,6 +189,8 @@ napi_value Recognize(napi_env env, napi_callback_info info) {
         if (work->work != nullptr) {
             napi_delete_async_work(env, work->work);
         }
+        napi_delete_reference(env, work->pixelsRef);
+        work->pixelsRef = nullptr;
         return promise;
     }
     work.release();

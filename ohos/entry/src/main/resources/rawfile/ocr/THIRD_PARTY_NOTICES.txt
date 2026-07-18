@@ -6,20 +6,36 @@ FreshCue offline OCR third-party notices
    libncnn.a SHA-256:
    2127667753672f75bb042fe89c8b0786c56e274e93db0680f26b24d61554aeeb
 
-2. PP-OCRv5 mobile recognition model
-   Upstream model: PaddleOCR / PP-OCRv5_mobile_rec
+2. opencv-mobile 4.13.0 (HarmonyOS arm64-v8a, core and imgproc)
+   Source: https://github.com/nihui/opencv-mobile/releases/tag/v36
+   License: Apache License 2.0; full text in APACHE-2.0.txt.
+   Release archive SHA-256:
+   34a7deb0fa11faa7dddd8f80d4e62fae821ed227de6f43ead521a755dce95375
+   libopencv_core.a SHA-256:
+   e19bbb3099b85e26339db5e7329e014891571ba926c197a997079a6c08bbae30
+   libopencv_imgproc.a SHA-256:
+   cf41a6fa8cfa4e7a6f535fe95b6df25f1313f0523252099aa566f79ffa670d6b
+
+3. PP-OCRv5 mobile detection and recognition models
+   Upstream models: PaddleOCR / PP-OCRv5_mobile_det and PP-OCRv5_mobile_rec
    Source: https://github.com/PaddlePaddle/PaddleOCR
    ncnn conversion source: https://github.com/nihui/ncnn-android-ppocrv5
+   Conversion revision: 671ac4a72299a86ddee160131ba88fed748df425
    License: Apache License 2.0; full text in APACHE-2.0.txt.
-   Param SHA-256:
+   Detection param SHA-256:
+   358f459680ae0e7a73e477469e529ce116f68c629019ec7a0b6457d2d9117934
+   Detection weights SHA-256:
+   857a96bc963725105b78a178dfcc3c0c3db1a7b9eef32244367b2cb105ccf60b
+   Recognition param SHA-256:
    f52a6586ac3338d8c350db0c9f3c55ff2ecd3763327f9bc7f0efc091f8a63e74
-   Weights SHA-256:
+   Recognition weights SHA-256:
    49d9907a55ba20fa6637f9f788f66ab00793bc8ce57a733a09dbe86b9a2e3db0
 
-3. PP-OCRv5 character dictionary and reference decoding logic
+4. PP-OCRv5 detector postprocessing, rotated crop, CTC decoding, and character dictionary
    Source: https://github.com/nihui/ncnn-android-ppocrv5
+   Revision: 671ac4a72299a86ddee160131ba88fed748df425
    Copyright (C) 2025 THL A29 Limited, a Tencent company.
    License: BSD 3-Clause; full text in BSD-3-Clause.txt.
 
-The model and runtime are bundled in the HAP and execute entirely on-device.
+The models and runtimes are bundled in the HAP and execute entirely on-device.
 FreshCue does not upload OCR inputs or results.

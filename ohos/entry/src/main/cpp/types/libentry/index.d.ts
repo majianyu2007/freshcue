@@ -1,6 +1,5 @@
 export interface OfflineOcrBlock {
   text: string;
-  confidence: number;
   left: number;
   top: number;
   right: number;
@@ -8,7 +7,12 @@ export interface OfflineOcrBlock {
   lineIndex: number;
 }
 
-export const loadModel: (param: ArrayBuffer, model: ArrayBuffer) => boolean;
+export const loadModel: (
+  detParam: ArrayBuffer,
+  detModel: ArrayBuffer,
+  recParam: ArrayBuffer,
+  recModel: ArrayBuffer,
+) => boolean;
 export const isReady: () => boolean;
 export const recognize: (
   rgbaPixels: ArrayBuffer,
