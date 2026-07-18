@@ -11,7 +11,13 @@ class KitCapability {
   });
 
   factory KitCapability.fromMap(Object? raw) {
-    if (raw is! Map) return const KitCapability(compiled: false, available: false, reason: 'missing');
+    if (raw is! Map) {
+      return const KitCapability(
+        compiled: false,
+        available: false,
+        reason: 'missing',
+      );
+    }
     return KitCapability(
       compiled: raw['compiled'] == true,
       available: raw['available'] == true,
@@ -26,14 +32,14 @@ class KitCapability {
 
   /// reason 机器码 → 中文（UI 用）。
   String get reasonLabel => switch (reason) {
-        'not_compiled' => '未编译进当前构建',
-        'feature_disabled' => '实验开关未启用',
-        'permission_denied' => '权限未授予',
-        'device_unsupported' => '设备不支持',
-        'missing' => '原生未上报',
-        '' => '',
-        _ => reason,
-      };
+    'not_compiled' => '未编译进当前构建',
+    'feature_disabled' => '实验开关未启用',
+    'permission_denied' => '权限未授予',
+    'device_unsupported' => '设备不支持',
+    'missing' => '原生未上报',
+    '' => '',
+    _ => reason,
+  };
 }
 
 /// 原生能力握手快照。
@@ -49,12 +55,12 @@ class PlatformCapabilities {
 
   /// 桥接不存在（桌面/测试环境）时的空快照。
   const PlatformCapabilities.unbridged()
-      : bridged = false,
-        platform = 'none',
-        apiVersion = 0,
-        bridgeVersion = 0,
-        filesDir = null,
-        kits = const {};
+    : bridged = false,
+      platform = 'none',
+      apiVersion = 0,
+      bridgeVersion = 0,
+      filesDir = null,
+      kits = const {};
 
   factory PlatformCapabilities.fromMap(Map<Object?, Object?> m) {
     final rawKits = m['kits'];
@@ -67,7 +73,8 @@ class PlatformCapabilities {
       kits: {
         if (rawKits is Map)
           for (final e in rawKits.entries)
-            if (e.key is String) e.key! as String: KitCapability.fromMap(e.value),
+            if (e.key is String)
+              e.key! as String: KitCapability.fromMap(e.value),
       },
     );
   }
@@ -94,8 +101,9 @@ class CapabilityService {
     try {
       final pong = await _channel.invokeMethod<String>('ping');
       if (pong != 'pong') return const PlatformCapabilities.unbridged();
-      final raw = await _channel
-          .invokeMethod<Map<Object?, Object?>>('getCapabilities');
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'getCapabilities',
+      );
       if (raw == null) return const PlatformCapabilities.unbridged();
       return PlatformCapabilities.fromMap(raw);
     } on MissingPluginException {

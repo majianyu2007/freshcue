@@ -114,8 +114,7 @@ class DiagnosticsPage extends StatelessWidget {
           ),
           trailing: const Icon(Icons.link, color: Colors.green),
         ),
-        for (final e in names.entries)
-          _kitRow(e.value, caps.kit(e.key)),
+        for (final e in names.entries) _kitRow(e.value, caps.kit(e.key)),
       ],
     );
   }
@@ -148,7 +147,9 @@ class DiagnosticsPage extends StatelessWidget {
   Widget _tag(String text, bool on, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
     decoration: BoxDecoration(
-      color: on ? color.withValues(alpha: 0.14) : Colors.grey.withValues(alpha: 0.12),
+      color: on
+          ? color.withValues(alpha: 0.14)
+          : Colors.grey.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(6),
     ),
     child: Text(

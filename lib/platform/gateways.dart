@@ -15,7 +15,9 @@ class OcrResultBlock {
   factory OcrResultBlock.fromMap(Map<Object?, Object?> m) => OcrResultBlock(
     text: m['text']! as String,
     // Core Vision 不提供逐行置信度 → null，不得伪造。
-    confidence: m['confidence'] == null ? null : (m['confidence']! as num).toDouble(),
+    confidence: m['confidence'] == null
+        ? null
+        : (m['confidence']! as num).toDouble(),
     left: (m['left']! as num).toDouble(),
     top: (m['top']! as num).toDouble(),
     right: (m['right']! as num).toDouble(),

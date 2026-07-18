@@ -34,10 +34,7 @@ void main() {
 
   group('shouldUseMockGateways（Release 禁 Mock）', () {
     test('Release（isDebug=false）恒不启用 Mock——即使桥接缺席', () {
-      expect(
-        shouldUseMockGateways(bridged: false, isDebug: false),
-        isFalse,
-      );
+      expect(shouldUseMockGateways(bridged: false, isDebug: false), isFalse);
     });
 
     test('Release + 显式 forceMock=true 仍不启用 Mock', () {

@@ -177,7 +177,10 @@ void main() {
       'id': 'old',
       'card_id': 'c1',
       'text': '旧数据',
-      'left': 0.0, 'top': 0.0, 'right': 1.0, 'bottom': 0.1,
+      'left': 0.0,
+      'top': 0.0,
+      'right': 1.0,
+      'bottom': 0.1,
       'confidence': 0.9,
       'line_index': 0,
     });
@@ -187,14 +190,21 @@ void main() {
     final v2 = await openAppDatabase(factory, path);
     expect(await v2.getVersion(), 2);
     // 旧数据保留。
-    final rows = await v2.query('ocr_blocks', where: 'id = ?', whereArgs: ['old']);
+    final rows = await v2.query(
+      'ocr_blocks',
+      where: 'id = ?',
+      whereArgs: ['old'],
+    );
     expect(rows.single['confidence'], 0.9);
     // 新表允许 null 写入。
     await v2.insert('ocr_blocks', {
       'id': 'new',
       'card_id': 'c1',
       'text': '新数据',
-      'left': 0.0, 'top': 0.0, 'right': 1.0, 'bottom': 0.1,
+      'left': 0.0,
+      'top': 0.0,
+      'right': 1.0,
+      'bottom': 0.1,
       'confidence': null,
       'line_index': 1,
     });

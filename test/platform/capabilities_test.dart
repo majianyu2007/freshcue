@@ -60,18 +60,27 @@ void main() {
 
     test('reason 机器码 → 中文', () {
       expect(
-        const KitCapability(compiled: true, available: false, reason: 'device_unsupported')
-            .reasonLabel,
+        const KitCapability(
+          compiled: true,
+          available: false,
+          reason: 'device_unsupported',
+        ).reasonLabel,
         '设备不支持',
       );
       expect(
-        const KitCapability(compiled: false, available: false, reason: 'not_compiled')
-            .reasonLabel,
+        const KitCapability(
+          compiled: false,
+          available: false,
+          reason: 'not_compiled',
+        ).reasonLabel,
         '未编译进当前构建',
       );
       expect(
-        const KitCapability(compiled: false, available: false, reason: 'feature_disabled')
-            .reasonLabel,
+        const KitCapability(
+          compiled: false,
+          available: false,
+          reason: 'feature_disabled',
+        ).reasonLabel,
         '实验开关未启用',
       );
     });
