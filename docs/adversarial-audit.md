@@ -2,15 +2,17 @@
 
 > 立场：把 bring-up 报告中的每条结论视为**待证声明**，主动找反例、复现失败、纠正夸大。
 > 审计人：Claude Code（静态 / 编译 / 自动测试 / 制品解包，**无真机**）。
-> 分支：`feat/ohos-hap-bringup` · HEAD `11ba8de` · 工作树干净。
+> 分支：`feat/ohos-hap-bringup` · HEAD `e5938d7` · 工作树干净。
 > 结论词汇：`已静态证明` / `已编译证明` / `已自动测试` / `需设备验证` / `声明不成立，已修复` / `仍被阻塞`。
 
-制品（干净 worktree @ HEAD `11ba8de`，OHOS Flutter 3.35.8-ohos-1.0.1 / API 24，均未签名）：
+制品（干净 worktree @ HEAD `e5938d7`，OHOS Flutter 3.35.8-ohos-1.0.1 / API 24，均未签名）：
 
 | 制品 | 大小 | 完整 SHA-256 |
 |---|---:|---|
-| Debug unsigned HAP | 99,814,481 B (95.2 MiB) | `1efcc18da35d3ae46b07539bb64ba743d4ee371f36ab1f9773682f6fff41f0eb` |
-| Release unsigned HAP | 23,704,015 B (22.6 MiB) | `7c70be29c4adc68e3b05cb7c1b7dbcd29625c0ec5daca63927370575566a4d9f` |
+| Debug unsigned HAP | 99,814,537 B (95.2 MiB) | `4df3680651813ec0daecf68768784f1498a1dfb084cb765535848eac686e7163` |
+| Release unsigned HAP | 23,704,015 B (22.6 MiB) | `2bee1dbd0d9f06e0eb63a90b50e69953c59d0f9f46459fec38e88c55e7f82563` |
+
+> SHA 仅指纹本次（HEAD `e5938d7`）产物；HAP 归档含时间戳，逐次构建 SHA 会变，非可复现哈希。
 
 制品逐项解包审计见 `docs/artifact-audit.md`。
 

@@ -62,23 +62,27 @@ export PATH=$TOOL_HOME/tools/ohpm/bin:$TOOL_HOME/tools/hvigor/bin:$TOOL_HOME/too
   的 records/patterns/sealed，兼容 3.9.2）。无功能降级。
 - 数据库：接入 CPF-Flutter `flutter_sqflite`（branch br_v2.4.2_ohos @
   1eefac74916ee14cab6b58da4d60a84153bcb758），sqflite_ohos 随 GeneratedPluginRegistrant
-  编入 HAP；main.dart bootstrap 依据 capability handshake 选择 SQL(OHOS) / 内存(桌面)。
-- analyze 0 issues；测试 119 通过（OHOS Flutter 与官方 Flutter 双跑）。
+  编入 HAP；main.dart bootstrap 依据**运行平台**（`Platform.operatingSystem=='ohos'`）
+  选择 SQL(OHOS) / 内存(桌面)——**不依赖** capability 握手（见对抗式审计 §问题 10）。
+- analyze 0 issues；测试 **129** 通过（OHOS Flutter 与官方 Flutter 双跑）。
 
 ### HAP 产物（未签名）
 
-> 更新（对抗式审计，干净 worktree @ HEAD `11ba8de`）：以下为完整 64 位 SHA-256。
+> 更新（对抗式审计，干净 worktree @ HEAD `e5938d7`）：以下为完整 64 位 SHA-256。
 > Debug 与 Release 的 `assembleHap` 均成功产出 unsigned HAP；唯一未完成阶段是**签名**
 > （`signingConfigs: []`，需 DevEco 华为账号自动生成）。制品解包审计见 `docs/artifact-audit.md`。
 
 | 阶段 | 模式 | 大小 | 完整 SHA-256（unsigned） |
 |---|---|---:|---|
-| FreshCue 全能力 HAP | Debug | 99,814,481 B (95.2 MiB) | `1efcc18da35d3ae46b07539bb64ba743d4ee371f36ab1f9773682f6fff41f0eb` |
-| FreshCue 全能力 HAP | Release | 23,704,015 B (22.6 MiB) | `7c70be29c4adc68e3b05cb7c1b7dbcd29625c0ec5daca63927370575566a4d9f` |
+| FreshCue 全能力 HAP | Debug | 99,814,537 B (95.2 MiB) | `4df3680651813ec0daecf68768784f1498a1dfb084cb765535848eac686e7163` |
+| FreshCue 全能力 HAP | Release | 23,704,015 B (22.6 MiB) | `2bee1dbd0d9f06e0eb63a90b50e69953c59d0f9f46459fec38e88c55e7f82563` |
 
 > 注：早期报告只给 Debug（~95M）并截断 SHA-16；未区分 Release。Release AOT 后仅 22.6 MiB
-> （Debug 的 95 MiB 主要来自 JIT `kernel_blob.bin` 47.5 MB + 未 strip 引擎）。SHA 随 Dart
-> 代码变动而变，上表对应 HEAD `11ba8de`。
+> （Debug 的 95 MiB 主要来自 JIT `kernel_blob.bin` 47.5 MB + 未 strip 引擎）。
+> **HAP 的 SHA-256 逐次构建都会变**（zip 归档嵌入构建时间戳等元数据，非确定性）：
+> 同一 commit 两次构建即得不同 SHA、大小也有几十字节浮动。上表 SHA 仅指纹 HEAD `e5938d7`
+> 本次产出的具体制品，**不是**“从源码可复现的确定性指纹”。可复现的是构建**过程**
+> （干净 worktree analyze/test/assembleHap 成功），而非字节级产物。
 
 ### SDK / API 兼容矩阵（§8，本机 API 24 d.ts 为证）
 
@@ -121,9 +125,10 @@ export PATH=$TOOL_HOME/tools/ohpm/bin:$TOOL_HOME/tools/hvigor/bin:$TOOL_HOME/too
 | Form Kit | — | 未开始 | 本阶段禁止 |
 
 ### 关键决策
-- **SDK 品类更正**：DevEco 内置 **HarmonyOS 6.1.1 SDK（API 24）** 含全部 HMS Kit
-  （Core Vision/Share/LiveView/Notification），无需另装。早前可行性报告基于独立
-  OpenHarmony SDK API 23（无 HMS Kit）的判断已被本阶段更新。
+- **SDK 品类更正**：DevEco 内置 **HarmonyOS 6.1.1 SDK（API 24）** 中**存在本项目实际
+  使用的 Kit**（Core Vision / Share / Reminder / MediaLibrary）的声明与编译依赖，无需
+  另装。早前可行性报告基于独立 OpenHarmony SDK API 23（无 HMS Kit）的判断已被本阶段
+  更新。（不宣称“含全部 HMS Kit”——未逐一枚举全部。）
 - **INTERNET 权限**：scaffold 模板默认注入 `ohos.permission.INTERNET`，已删除
   （应用无任何网络代码，符合隐私 §19.2）。
 - 参考实现（旧 ArkTS）与真实 SDK 的差异已在拉通中修正：`ActionButtonType.CUSTOM`

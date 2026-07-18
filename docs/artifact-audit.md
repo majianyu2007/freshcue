@@ -1,14 +1,18 @@
 # HAP 制品审计（解包只读）
 
-> 对干净 worktree @ HEAD `11ba8de` 产出的 Debug / Release **unsigned** HAP 解压只读审计。
+> 对干净 worktree @ HEAD `e5938d7` 产出的 Debug / Release **unsigned** HAP 解压只读审计。
 > 命令：`unzip -q <hap> -d <dir>`；`module.json` 为**纯文本**合并 manifest（非二进制，无需反编译）。
 
 ## A. 制品指纹
 
 | 制品 | 模式 | 大小 | 完整 SHA-256 | 签名 |
 |---|---|---:|---|---|
-| entry-default-unsigned.hap（Debug） | debug | 99,814,481 B | `1efcc18da35d3ae46b07539bb64ba743d4ee371f36ab1f9773682f6fff41f0eb` | 未签名 |
-| entry-default-unsigned.hap（Release） | release | 23,704,015 B | `7c70be29c4adc68e3b05cb7c1b7dbcd29625c0ec5daca63927370575566a4d9f` | 未签名 |
+| entry-default-unsigned.hap（Debug） | debug | 99,814,537 B | `4df3680651813ec0daecf68768784f1498a1dfb084cb765535848eac686e7163` | 未签名 |
+| entry-default-unsigned.hap（Release） | release | 23,704,015 B | `2bee1dbd0d9f06e0eb63a90b50e69953c59d0f9f46459fec38e88c55e7f82563` | 未签名 |
+
+> ⚠️ HAP 的 SHA-256 **非确定性**：zip 归档嵌入构建时间戳，同一 commit 逐次构建即得不同
+> SHA（大小也有几十字节浮动）。上表指纹本次（HEAD `e5938d7`）产出的具体制品，不作
+> “从源码可复现的确定性哈希”承诺。
 
 ## B. Bundle / Module / Ability（Release 合并 manifest）
 
