@@ -325,7 +325,7 @@ void main() {
       expect(d.candidates, isEmpty);
       expect(d.title, '未命名卡片');
     });
-    test('比赛演示样例完整解析', () {
+    test('演示样例完整解析', () {
       final d = parser.parseText(
         '校园创新体验日\n报名截止：7月20日 18:00\n活动时间：7月25日 14:00—16:30\n'
         '地点：大学生活动中心 201\n入场码：A7281',
