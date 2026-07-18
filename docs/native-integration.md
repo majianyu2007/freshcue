@@ -41,8 +41,8 @@ Dart 代码，再由 hvigor assembleHap。
 DevEco 靠工程根的 `build-profile.json5` / `oh-package.json5` / `AppScope/` 识别
 HarmonyOS 工程——这些在 **`ohos/` 子目录**里，不在仓库根。
 
-> DevEco → 打开项目 → 选择 **`/Users/majianyu/Project/freshcue/ohos`**
-> （选仓库根会报「不是 OpenHarmony/HarmonyOS 项目」，因为根是 Flutter 工程）。
+> DevEco → 打开项目 → 选择 **`<仓库根>/ohos`**（即 `$HOME/Project/freshcue/ohos`
+> 之类的本机路径；选仓库根会报「不是 OpenHarmony/HarmonyOS 项目」，因为根是 Flutter 工程）。
 
 已就绪、无需手动：
 - `ohos/local.properties`（机器相关，已 gitignore）指向 DevEco SDK 与 OHOS Flutter。

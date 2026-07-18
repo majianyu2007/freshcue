@@ -4,23 +4,31 @@
 
 ```bash
 flutter analyze        # 0 issues
-flutter test           # 107 个测试
+flutter test           # 129 个测试
 tool/check.sh          # 格式化 + analyze + test 一键
 ```
 
 ## 覆盖矩阵
 
-共 **119** 项，OHOS Flutter 3.35.8-ohos-1.0.1（Dart 3.9.2）与官方 Flutter 3.44.6
-双工具链均全绿（切换工具链后需各自 `flutter clean` 一次，避免 ink_sparkle 着色器
-缓存跨版本不兼容——纯资产缓存问题，非代码回归）。
+**同一组 129 项测试**分别在两套 Flutter SDK 下各执行一次（不是 258 个不同测试）：
+官方 Flutter 3.44.6（Dart 3.9）与 OHOS Flutter 3.35.8-ohos-1.0.1（Dart 3.9.2）均全绿
+（切换工具链后各自 `flutter clean` 一次，避免 ink_sparkle 着色器缓存跨版本不兼容——
+纯资产缓存问题，非代码回归）。
+
+- 测试文件数：8
+- 独立 test case 数：129
+- 官方 Flutter 3.44.6：129 passed
+- OHOS Flutter 3.35.8-ohos-1.0.1：129 passed
+- 本轮审计新增：10（8 组合根决策 + 2 通知深链安全失败）
 
 | 套件 | 文件 | 数量 | 覆盖 |
 |---|---|---|---|
 | 解析器 | test/parser/parser_test.dart | 62 | 全部 §14.2 时间表达、年份推断/跨年/闰年、区间、角色分类（含发布时间排除）、OCR 重复去重、卡片分类、标题/地点/验证码提取、高风险检测、12 个规定边界用例、演示样例 |
 | 领域 | test/domain/domain_test.dart | 19 | FreshnessPolicy 四状态边界、提醒模板展开、跳过过去、去重、安静时段、snooze、敏感遮罩 |
 | 数据 | test/data/database_test.dart | 11 | 真实 SQLite（ffi）：schema、全字段读写、按状态查询、sha256 去重、计划/实例替换、级联删除、损坏记录容错、跨连接持久化、**OCR confidence null**、**v1→v2 迁移冒烟** |
-| 服务 | test/data/card_service_test.dart | 7 | 确认→调度、编辑→取消重建、删除级联、通知行为、snooze、reconciliation、调度失败不装成功 |
+| 服务 | test/data/card_service_test.dart | 9 | 确认→调度、编辑→取消重建、删除级联、通知行为、snooze、reconciliation、调度失败不装成功、**通知深链 opened 遇不存在 cardId 安全失败**、**snooze 遇不存在 cardId 安全返回** |
 | 平台 | test/platform/capabilities_test.dart + platform_registry_test.dart | 10 | capability JSON 解析+缺字段兼容、reason→中文、OCR confidence null 解析、桥接缺席降级 Mock、桥接存在用真实网关、forceMock |
+| 组合根 | test/app/composition_test.dart | 8 | **持久化决策**（OHOS→SQL / OHOS 缺沙箱→阻塞 / 非 OHOS→内存，独立于 capability 握手）、**Release 禁 Mock**（isDebug=false 恒 false，含 forceMock=true 仍不启用） |
 | Widget | test/widgets/app_widget_test.dart | 10 | 首页空/有数据、Mock 横幅、敏感遮罩、确认页低置信度+多时间+提醒预览、权限拒绝降级、深色模式、1.6x 大字体、过期箱恢复、通知 complete |
 
 ## 约定

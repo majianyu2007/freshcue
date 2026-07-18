@@ -16,12 +16,12 @@ dependencies:
   crypto: ^3.0.6
   # 纯 Dart：sqflite 的平台无关 API 层（无原生插件代码）。
   # OHOS 真机构建时由 openharmony-sig 适配的 sqflite 插件提供 DatabaseFactory，
-  # 见 docs/native-integration.md。MIT 许可证。
+  # 见 docs/native-integration.md。BSD-2-Clause 许可证。
   sqflite_common: ^2.5.5
   # 纯 Dart 路径处理。BSD-3 许可证。
   path: ^1.9.0
   # OHOS 适配 sqflite（CPF-Flutter 社区适配，含 ohos 平台实现）。
-  # 锁定 branch br_v2.4.2_ohos @ 1eefac74916ee14cab6b58da4d60a84153bcb758。MIT。
+  # 锁定 branch br_v2.4.2_ohos @ 1eefac74916ee14cab6b58da4d60a84153bcb758。BSD-2-Clause。
   sqflite:
     git:
       url: https://gitcode.com/CPF-Flutter/flutter_sqflite.git

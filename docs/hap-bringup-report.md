@@ -65,12 +65,36 @@ export PATH=$TOOL_HOME/tools/ohpm/bin:$TOOL_HOME/tools/hvigor/bin:$TOOL_HOME/too
   编入 HAP；main.dart bootstrap 依据 capability handshake 选择 SQL(OHOS) / 内存(桌面)。
 - analyze 0 issues；测试 119 通过（OHOS Flutter 与官方 Flutter 双跑）。
 
-### HAP 产物（Debug，未签名）
+### HAP 产物（未签名）
 
-| 阶段 | 命令 | 大小 | SHA-256(前 16) | 签名 | 安装 | 启动 |
-|---|---|---|---|---|---|---|
-| 空白 HAP | flutter build hap --debug | 89M | ea7b3c56bd1d41fe | 否 | 无设备 | 无设备 |
-| FreshCue 全能力 HAP | flutter build hap --debug | 95M(99799087B) | 6867a988838c429c | 否 | 无设备 | 无设备 |
+> 更新（对抗式审计，干净 worktree @ HEAD `11ba8de`）：以下为完整 64 位 SHA-256。
+> Debug 与 Release 的 `assembleHap` 均成功产出 unsigned HAP；唯一未完成阶段是**签名**
+> （`signingConfigs: []`，需 DevEco 华为账号自动生成）。制品解包审计见 `docs/artifact-audit.md`。
+
+| 阶段 | 模式 | 大小 | 完整 SHA-256（unsigned） |
+|---|---|---:|---|
+| FreshCue 全能力 HAP | Debug | 99,814,481 B (95.2 MiB) | `1efcc18da35d3ae46b07539bb64ba743d4ee371f36ab1f9773682f6fff41f0eb` |
+| FreshCue 全能力 HAP | Release | 23,704,015 B (22.6 MiB) | `7c70be29c4adc68e3b05cb7c1b7dbcd29625c0ec5daca63927370575566a4d9f` |
+
+> 注：早期报告只给 Debug（~95M）并截断 SHA-16；未区分 Release。Release AOT 后仅 22.6 MiB
+> （Debug 的 95 MiB 主要来自 JIT `kernel_blob.bin` 47.5 MB + 未 strip 引擎）。SHA 随 Dart
+> 代码变动而变，上表对应 HEAD `11ba8de`。
+
+### SDK / API 兼容矩阵（§8，本机 API 24 d.ts 为证）
+
+| 能力 | 使用 API | since（本机 d.ts） | 版本体系 | 影响 compatibleSdkVersion? |
+|---|---|---:|---|---|
+| OCR | `textRecognition.recognizeText` | @since 4 | HMS Core | 否（远低于 24） |
+| 分享接收 | `systemShare.getSharedData` / `SharedData` | @since 4 | HMS Core | 否 |
+| 代理提醒 | `reminderAgentManager.publishReminder` / `ReminderRequestCalendar` | @since 9 | OpenHarmony API | 否 |
+| 图库 | `photoAccessHelper.PhotoViewPicker` | @since 12 | OpenHarmony API | **本项目 OHOS-API 使用上限** |
+
+结论：本项目**自身**直接使用的 OHOS API 上限为 PhotoViewPicker `@since 12`；HMS OCR/分享用
+HMS-since 4；提醒 `@since 9`。当前 `compatibleSdkVersion=6.1.1(24)` **高于**这些用量，是因为
+(1) 本机仅装 API 24 SDK、(2) 曾为避免 DevEco 下载 API18 而上调、(3) OHOS Flutter 引擎 HAR 的
+最低要求未独立枚举。**没有真机 + 更低 SDK 无法验证降低后是否仍可安装/运行**，故本阶段
+**不盲目下调**（§8 明确禁止“为兼容更多设备虚假降版导致运行时缺 API”）。下调为后续
+“有设备 + 多 SDK”验证项。
 
 构建命令（完整环境变量）：
 ```bash

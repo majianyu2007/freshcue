@@ -1,5 +1,11 @@
 # FreshCue 可行性勘察报告（Phase 0）
 
+> ⚠️ 历史文档（Phase 0 快照）。**已被后续进展取代**：现已固定 OHOS Flutter
+> 3.35.8-ohos-1.0.1 + DevEco 内置 HarmonyOS 6.1.1 / **API 24** SDK，Debug 与 Release
+> HAP 均**编译 + 打包通过**（未签名）。本文下方“本机不能完成 HAP 构建”“不声称 HAP
+> 构建成功”等结论**已过时**，最新状态见 `docs/hap-bringup-report.md`、
+> `docs/artifact-audit.md`、`docs/adversarial-audit.md`。以下保留原始 Phase 0 记录。
+
 日期：2026-07-18 ｜ 勘察机器：macOS (Darwin 27.0.0, arm64)
 
 ## 1. 环境事实

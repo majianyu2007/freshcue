@@ -1,12 +1,14 @@
 # 已知限制
 
-> 更新（OHOS bring-up 阶段）：HAP 现已可构建（3.35.8-ohos-1.0.1 / HarmonyOS SDK
-> API 24），OCR/分享/代理提醒三条链已**真实编译**进 HAP，数据库已切 sqflite_ohos。
-> 剩余限制主要是**无真机导致的运行期未验证**。详见 docs/hap-bringup-report.md。
+> 更新（Release 前对抗式审计阶段）：Debug 与 Release HAP 均**编译 + 打包通过**
+> （3.35.8-ohos-1.0.1 / HarmonyOS SDK API 24），唯一未完成阶段是**签名**（需华为账号）。
+> OCR/分享/代理提醒三条链已**真实编译**进 HAP（制品字节码可见插件类），数据库已切
+> sqflite_ohos。剩余限制主要是**无真机导致的运行期未验证**。
+> 详见 `docs/adversarial-audit.md`、`docs/artifact-audit.md`、`docs/hap-bringup-report.md`。
 
 | # | 限制 | 原因 | 影响 | 下一步 |
 |---|---|---|---|---|
-| 1 | ~~HAP 未构建~~ **已解决** | — | Debug HAP 可构建（95M，未签名） | Release 需 DevEco 签名账号 |
+| 1 | HAP 仅编译+打包，未签名 | 签名需 DevEco 登录华为账号自动生成证书（GUI，无法脚本化） | Debug（95.2 MiB）/ Release（22.6 MiB）unsigned HAP 均产出；`assembleHap` 成功，仅签名阶段被阻塞 | 有账号者 DevEco 打开 `ohos/` 配置自动签名后安装 |
 | 2 | ArkTS 桥接未真机验证 | 无真机/模拟器（hdc 无目标） | OCR/分享/提醒已编译但未设备运行 | 真机按 device-test-checklist.md 逐项验证 |
 | 3 | ~~main.dart 用内存仓库~~ **已解决** | — | OHOS 走 sqflite_ohos，桌面走内存 | 真机验证持久化 |
 | 4 | 实况窗 feature flag 禁用 + 编译隔离 | 需 AGC 权益 | 实现留在 ohos-reference/，不阻塞 HAP | 取得权益后接入并验证 |

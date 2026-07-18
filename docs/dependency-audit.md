@@ -7,9 +7,9 @@
 | flutter / flutter_localizations | SDK | — | 框架 + 中文本地化 | OHOS 分支同源 | BSD-3 |
 | intl | 随 SDK | 纯 Dart | 本地化基础 | ✅ | BSD-3 |
 | crypto | ^3.0.6 | 纯 Dart | SHA-256 去重 | ✅ | BSD-3 |
-| sqflite_common | ^2.5.5 | 纯 Dart | SQLite API 层（无原生代码） | ✅（factory 由 ohos 插件注入） | MIT |
+| sqflite_common | ^2.5.5 | 纯 Dart | SQLite API 层（无原生代码） | ✅（factory 由 ohos 插件注入） | BSD-2-Clause |
 | path | ^1.9.0 | 纯 Dart | 路径拼接 | ✅ | BSD-3 |
-| sqflite | git br_v2.4.2_ohos @1eefac74 | 平台插件 | OHOS 真机 SQLite/RDB 持久化 | ✅ 已编译进 HAP | MIT |
+| sqflite | git br_v2.4.2_ohos @1eefac74 | 平台插件 | OHOS 真机 SQLite/RDB 持久化 | ✅ 已编译进 HAP | BSD-2-Clause |
 
 ## dev 依赖
 
@@ -17,7 +17,20 @@
 |---|---|---|
 | flutter_test | 测试 | BSD-3 |
 | flutter_lints ^6.0.0 | 静态检查 | BSD-3 |
-| sqflite_common_ffi ^2.3.6 | 桌面 SQLite 测试（不进产物） | MIT |
+| sqflite_common_ffi ^2.3.6 | 桌面 SQLite 测试（不进产物） | BSD-2-Clause |
+
+## git 依赖可复现性与署名（sqflite，§审计）
+
+- **不可变提交锁定**：`pubspec.yaml` 用 `ref: 1eefac74916ee14cab6b58da4d60a84153bcb758`
+  （完整 40 位 commit，非浮动 branch 名），`pubspec.lock` 记录同一
+  `resolved-ref`。重新 `flutter pub get` 解析到同一 commit → **完全可复现**，
+  不存在“把 branch 浮动引用误当可复现”的问题。
+- **许可证**：CPF-Flutter/flutter_sqflite 沿用 Tekartik sqflite 的
+  **BSD-2-Clause**（`LICENSE`：Copyright (c) 2019 Alexandre Roux Tekartik）。
+  BSD-2-Clause 允许比赛/商业分发，要求保留版权声明与许可证文本。
+- **署名**：分发物需在 NOTICE/关于页保留 sqflite 及 Flutter 引擎（BSD-3）版权。
+  HAP 内 `flutter_assets/NOTICES.Z` 已含引擎依赖声明；建议应用“关于”页补 sqflite 署名。
+- 更正记录：本表此前将三处 Tekartik 包标为 MIT，实为 BSD-2-Clause，已修正。
 
 ## 明确不引入
 
