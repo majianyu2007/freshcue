@@ -1,0 +1,34 @@
+name: freshcue
+description: "FreshCue（截期）— 把截图中的临时信息转换成会提醒、会过期的时效卡片。"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any # 版本由 flutter_localizations 固定
+  # 纯 Dart：SHA-256 去重、文件名派生。BSD-3 许可证。
+  crypto: ^3.0.6
+  # 纯 Dart：sqflite 的平台无关 API 层（无原生插件代码）。
+  # OHOS 真机构建时由 openharmony-sig 适配的 sqflite 插件提供 DatabaseFactory，
+  # 见 docs/native-integration.md。MIT 许可证。
+  sqflite_common: ^2.5.5
+  # 纯 Dart 路径处理。BSD-3 许可证。
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # 仅测试：在桌面环境用真实 SQLite 验证 schema 与迁移。
+  sqflite_common_ffi: ^2.3.6
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/demo/

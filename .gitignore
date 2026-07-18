@@ -1,0 +1,61 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.build/
+.buildlog/
+.history
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ / VS Code
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+
+# Flutter/Dart/Pub
+**/doc/api/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+app.*.symbols
+app.*.map.json
+
+# OHOS / DevEco 构建产物
+ohos/.hvigor/
+ohos/**/build/
+ohos/**/oh_modules/
+ohos/**/.preview/
+ohos/local.properties
+ohos/**/*.har
+ohos/**/*.hap
+ohos/**/*.hsp
+ohos/oh-package-lock.json5
+
+# 签名材料——绝不提交
+*.p7b
+*.cer
+*.p12
+*.csr
+ohos/**/signingConfigs/
+
+# 本地机器配置（示例见 tool/local.example.sh）
+.env
+.env.local
+local.config.json
+tool/local.sh
+
+# ML 中间产物
+ml/output/
+ml/*.ms
+ml/*.onnx
+ml/*.ckpt
+ml/__pycache__/
