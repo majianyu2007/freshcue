@@ -20,6 +20,13 @@ dependencies:
   sqflite_common: ^2.5.5
   # 纯 Dart 路径处理。BSD-3 许可证。
   path: ^1.9.0
+  # OHOS 适配 sqflite（CPF-Flutter 社区适配，含 ohos 平台实现）。
+  # 锁定 branch br_v2.4.2_ohos @ 1eefac74916ee14cab6b58da4d60a84153bcb758。MIT。
+  sqflite:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_sqflite.git
+      path: sqflite
+      ref: 1eefac74916ee14cab6b58da4d60a84153bcb758
 
 dev_dependencies:
   flutter_test:

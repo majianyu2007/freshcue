@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:sqflite_common/sqlite_api.dart' show Database;
 
 import '../core/clock/clock.dart';
 import '../core/errors/app_failure.dart';
@@ -9,6 +10,7 @@ import '../core/utils/id_gen.dart';
 import '../data/card_service.dart';
 import '../data/database/image_asset_service.dart';
 import '../data/repositories/memory_repositories.dart';
+import '../data/repositories/sql_repositories.dart';
 import '../domain/entities/reminder.dart';
 import '../domain/entities/source_asset.dart';
 import '../domain/entities/temporal_card.dart';
@@ -417,6 +419,47 @@ AppController createMemoryAppController({
     ocrBlocks: blocks,
     reminders: reminders,
     settings: MemorySettingsRepository(),
+    cardService: CardService(
+      cards: cards,
+      assets: assets,
+      ocrBlocks: blocks,
+      reminders: reminders,
+      reminderGateway: reminderGateway,
+      assetService: assetService,
+      clock: clock,
+    ),
+    assetService: assetService,
+    ocr: ocr,
+    share: share,
+    reminderGateway: reminderGateway,
+    liveView: liveView,
+    clock: clock,
+    usingMockPlatform: usingMockPlatform,
+  );
+}
+
+/// 组装依赖（OHOS 真机：SQL 仓库 + 真实 Channel 网关）。
+AppController createSqlAppController({
+  required Database db,
+  Clock clock = const SystemClock(),
+  required OcrGateway ocr,
+  required ShareGateway share,
+  required ReminderGateway reminderGateway,
+  required LiveViewGateway liveView,
+  required String sandboxDir,
+  bool usingMockPlatform = false,
+}) {
+  final cards = SqlCardRepository(db);
+  final assets = SqlAssetRepository(db);
+  final blocks = SqlOcrBlockRepository(db);
+  final reminders = SqlReminderRepository(db);
+  final assetService = ImageAssetService(sandboxDir: sandboxDir);
+  return AppController(
+    cards: cards,
+    assets: assets,
+    ocrBlocks: blocks,
+    reminders: reminders,
+    settings: SqlSettingsRepository(db),
     cardService: CardService(
       cards: cards,
       assets: assets,
