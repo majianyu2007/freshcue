@@ -79,4 +79,4 @@ Flutter 包装命令会在 `assembleHap` 成功后因缺少签名配置返回非
 - 多图分享当前只导入第一张；UI 会提示其余图片未导入。
 - Core Vision 与离线 OCR 均无可靠逐行置信度时，字段保持 `null`，不生成伪置信度。
 
-许可证见 [LICENSE](LICENSE)。第三方 OCR 模型和 ncnn 许可证随 HAP 资源保存在 `ohos/entry/src/main/resources/rawfile/ocr/`。
+第三方 OCR 模型和 ncnn 的版权声明及许可证随 HAP 资源保存在 `ohos/entry/src/main/resources/rawfile/ocr/`。
