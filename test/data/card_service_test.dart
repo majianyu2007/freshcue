@@ -168,6 +168,33 @@ void main() {
     expect(all.every((i) => i.status == ReminderStatus.failed), isTrue);
     expect(all.first.failureReason, isNotNull);
   });
+
+  test('通知深链 opened 遇到不存在的 cardId → 安全失败（不抛异常）', () async {
+    // 原生 ReminderPlugin 仅发 'opened'；卡片可能已被删除。
+    await expectLater(
+      service.handleAction(
+        const ReminderActionEvent(
+          action: ReminderActionType.opened,
+          cardId: 'does-not-exist',
+          instanceId: '',
+        ),
+      ),
+      completes,
+    );
+  });
+
+  test('snooze 行为遇到不存在的 cardId → 安全返回（不抛异常）', () async {
+    await expectLater(
+      service.handleAction(
+        const ReminderActionEvent(
+          action: ReminderActionType.snooze10m,
+          cardId: 'does-not-exist',
+          instanceId: 'x',
+        ),
+      ),
+      completes,
+    );
+  });
 }
 
 class _FailingGateway extends MockReminderGateway {

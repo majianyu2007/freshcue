@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../app/composition.dart';
 import '../core/clock/clock.dart';
 import 'capabilities.dart';
 import 'channel_gateways.dart';
@@ -35,7 +36,11 @@ class PlatformRegistry {
     PlatformCapabilities? capabilities,
   }) async {
     final caps = capabilities ?? await CapabilityService().fetch();
-    final useMock = forceMock ?? (!caps.bridged && kDebugMode);
+    final useMock = shouldUseMockGateways(
+      bridged: caps.bridged,
+      isDebug: kDebugMode,
+      forceMock: forceMock,
+    );
     assert(() {
       if (forceMock == true && kReleaseMode) {
         throw StateError('Release 构建禁止启用 Mock 平台能力');
