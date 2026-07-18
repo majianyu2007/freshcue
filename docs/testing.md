@@ -88,7 +88,7 @@ All items below remain **待设备验证** until evidence records device model, 
 12. Restart the device; verify SQLite cards and valid agent reminders survive/reconcile.
 13. Add the 2×4 `freshcue_cards` service card; verify up to three nearest active cards, compact time labels and row deep links.
 14. Complete/archive/delete cards and confirm the launcher card refreshes with no stale row.
-15. Create a sensitive temporary-secret card and confirm it never appears in Form Kit or lock-screen notification content.
+15. Create a sensitive temporary-secret card and confirm Form Kit and lock-screen notification content show no original secret/title value.
 16. Exercise rotated/EXIF images and large/low-contrast screenshots; verify block coordinates and thumbnails.
 
 ## 6. Evidence vocabulary

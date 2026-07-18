@@ -170,7 +170,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _publishFormCards(DateTime now) async {
     final snapshots = <FormCardSnapshot>[
-      for (final card in activeCards.take(4))
+      for (final card in activeCards.take(3))
         FormCardSnapshot(
           id: card.id,
           title: card.isSensitive ? '敏感卡片' : card.title,

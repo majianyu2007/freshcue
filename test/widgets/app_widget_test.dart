@@ -32,14 +32,17 @@ void main() {
     );
   });
 
-  Future<TemporalCard> seedCard({bool sensitive = false}) async {
+  Future<TemporalCard> seedCard({
+    bool sensitive = false,
+    DateTime? deadlineAt,
+  }) async {
     final card = TemporalCard(
       id: IdGen.newId(),
       title: '校园创新体验日',
       category: sensitive ? CardCategory.temporarySecret : CardCategory.event,
       status: CardStatus.active,
       secretValue: sensitive ? 'A7281' : null,
-      deadlineAt: DateTime(2026, 7, 20, 18, 0),
+      deadlineAt: deadlineAt ?? DateTime(2026, 7, 20, 18, 0),
       eventStartAt: DateTime(2026, 7, 25, 14, 0),
       isSensitive: sensitive,
       createdAt: now,
@@ -83,12 +86,17 @@ void main() {
     expect(find.textContaining('A•••1'), findsOneWidget);
   });
 
-  test('服务卡片快照只发布未完成卡片并遮罩敏感标题', () async {
-    await seedCard();
-    final sensitive = await seedCard(sensitive: true);
+  test('服务卡片最多发布3张未完成卡片并遮罩敏感标题', () async {
+    await seedCard(deadlineAt: DateTime(2026, 7, 19, 18));
+    final sensitive = await seedCard(
+      sensitive: true,
+      deadlineAt: DateTime(2026, 7, 20, 18),
+    );
+    await seedCard(deadlineAt: DateTime(2026, 7, 21, 18));
+    await seedCard(deadlineAt: DateTime(2026, 7, 22, 18));
     await Future<void>.delayed(Duration.zero);
 
-    expect(formGateway.cards, hasLength(2));
+    expect(formGateway.cards, hasLength(3));
     final snapshot = formGateway.cards.singleWhere(
       (card) => card.id == sensitive.id,
     );

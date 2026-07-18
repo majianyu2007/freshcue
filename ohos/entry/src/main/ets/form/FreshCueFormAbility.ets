@@ -35,7 +35,6 @@ export default class FreshCueFormAbility extends FormExtensionAbility {
       'card0Title': '', 'card0Time': '', 'card0Uri': 'freshcue://archive',
       'card1Title': '', 'card1Time': '', 'card1Uri': 'freshcue://archive',
       'card2Title': '', 'card2Time': '', 'card2Uri': 'freshcue://archive',
-      'card3Title': '', 'card3Time': '', 'card3Uri': 'freshcue://archive',
     };
     try {
       const store = preferences.getPreferencesSync(this.context, { name: STORE_NAME });

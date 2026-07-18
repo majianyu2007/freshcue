@@ -98,7 +98,7 @@ Form Kit files:
 - `ohos/entry/src/main/resources/base/profile/form_config.json`: form declaration.
 - `FormPlugin.ets`: receives Flutter snapshots, stores JSON in Preferences, calls `formProvider.updateForm` for running `freshcue_cards` instances.
 
-Snapshot contract: at most three records `{id, title, timeLabel}`. `AppController` excludes sensitive cards and sends only current active, non-expired cards. Empty slots are overwritten during every update so removed cards do not remain visible. Tapping a row opens `freshcue://card/<id>`; tapping the empty state opens `freshcue://archive`.
+Snapshot contract: at most three records `{id, title, timeLabel}`. `AppController` sends only current active, non-expired cards and replaces sensitive titles with `敏感卡片`. Empty slots are overwritten during every update so removed cards do not remain visible. Tapping a row opens `freshcue://card/<id>`; tapping the empty state opens `freshcue://archive`.
 
 The Form Kit API surface and HAP compilation are verified. Adding the card, update delivery and deep-link behavior require device/launcher validation.
 

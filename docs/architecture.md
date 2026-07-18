@@ -47,7 +47,7 @@ Pages never write SQL or call ArkTS APIs directly. `CardService` owns cross-repo
    - aggregation: build a `ParsedDraft` with candidates and evidence block IDs.
 5. `ReviewPage` keeps every field editable and requires explicit confirmation.
 6. `CardService.confirmCard` saves card/OCR/reminder intent, schedules platform instances, and reports partial scheduling failures without losing the card.
-7. `AppController.refresh` recomputes derived freshness, then sends up to three non-sensitive active-card snapshots through `FormGateway`.
+7. `AppController.refresh` recomputes derived freshness, then sends up to three active-card snapshots through `FormGateway`; sensitive titles are replaced with a fixed label.
 
 ## 4. Lifecycle and reminder model
 
@@ -85,7 +85,7 @@ Channel names are `freshcue/capabilities`, `freshcue/ocr`, `freshcue/share`, `fr
 - `IdGen` uses secure random 128-bit IDs for records and asset names.
 - `AppLog` redacts phone numbers, identity/bank numbers, URL query values and secrets.
 - OCR engine confidence and parser confidence are separate. Missing engine confidence remains `null`.
-- Sensitive cards are excluded from Form Kit snapshots; notification payloads hide their content.
+- Sensitive Form Kit titles and notification payloads hide their original content.
 - The database is the source of truth for reminder intent; Reminder Agent is the executor. Startup reconciliation repairs stale instance status and missing platform IDs.
 - SQLite migrations are append-only; current schema version is 2.
 

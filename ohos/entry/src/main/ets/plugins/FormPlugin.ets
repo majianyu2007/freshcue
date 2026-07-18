@@ -16,7 +16,7 @@ import { CapabilityRegistry } from './CapabilitiesPlugin';
 const STORE_NAME = 'freshcue_form';
 const STORE_KEY = 'data';
 const FORM_NAME = 'freshcue_cards';
-const MAX_CARDS = 4;
+const MAX_CARDS = 3;
 
 export class FormPlugin implements FlutterPlugin, MethodCallHandler {
   private channel: MethodChannel | null = null;

@@ -13,9 +13,6 @@ struct FreshCueCard {
   @LocalStorageProp('card2Title') card2Title: string = '';
   @LocalStorageProp('card2Time') card2Time: string = '';
   @LocalStorageProp('card2Uri') card2Uri: string = 'freshcue://archive';
-  @LocalStorageProp('card3Title') card3Title: string = '';
-  @LocalStorageProp('card3Time') card3Time: string = '';
-  @LocalStorageProp('card3Uri') card3Uri: string = 'freshcue://archive';
 
   @Builder
   cardRow(title: string, timeLabel: string, uri: string) {
@@ -84,9 +81,6 @@ struct FreshCueCard {
         }
         if (this.count > 2) {
           this.cardRow(this.card2Title, this.card2Time, this.card2Uri)
-        }
-        if (this.count > 3) {
-          this.cardRow(this.card3Title, this.card3Time, this.card3Uri)
         }
       }
     }
