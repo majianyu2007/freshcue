@@ -27,6 +27,14 @@ flutter test test/widgets/app_widget_test.dart
 flutter test --plain-name '演示样例完整解析'
 ```
 
+Native OCR gate (real det → rec path, no Flutter Mock):
+
+```bash
+tool/native_ocr_smoke.sh
+```
+
+The first run downloads checksum-pinned macOS ncnn 20260526 and opencv-mobile 4.13.0 packages into ignored `.toolchains/` storage. It generates ten deterministic image layouts in memory and fails below 8/10 key-time matches. Latest observed result: **9/10**.
+
 ## 2. Automated coverage
 
 Latest observed desktop gate: **136 tests passed**, `flutter analyze` **0 issues**.
@@ -65,7 +73,7 @@ Expected build evidence:
 
 - Hvigor `assembleHap` completes.
 - `entry-default-unsigned.hap` exists under `ohos/entry/build/default/outputs/default/`.
-- The package includes `libs/arm64-v8a/libentry.so`, OCR model resources, `ets/modules.abc`, `ets/widgets.abc`, and `resources/base/profile/form_config.json`.
+- The package includes `libs/arm64-v8a/libentry.so`, both detector and recognizer model resources, `ets/modules.abc`, `ets/widgets.abc`, and a dynamic `resources/base/profile/form_config.json`.
 - Merged manifest targets HarmonyOS API 24, has `debug:false` for Release, and requests only `PUBLISH_AGENT_REMINDER`.
 
 Signing is a separate gate. Do not claim installation or runtime verification from an unsigned artifact.
@@ -76,8 +84,8 @@ All items below remain **待设备验证** until evidence records device model, 
 
 1. Install a signed Debug and Release HAP; cold start without a network connection.
 2. Confirm diagnostic handshake: platform `ohos`; database, OCR, share, reminders and forms report compiled/available accurately.
-3. Import the synthetic demo image from Photo Picker; confirm provider identity and editable OCR blocks.
-4. Disable or fail Core Vision and verify offline OCR recognizes useful Chinese text in airplane mode.
+3. Import representative white/dark, bubble, mixed-content, small-text, two-column, low-contrast and long screenshots; confirm editable OCR blocks.
+4. Disable or fail Core Vision and verify offline det → rec OCR recognizes useful Chinese/time text in airplane mode.
 5. Verify OCR failure still opens manual confirmation and preserves the source image.
 6. Share one image into a cold app, then another into a hot app; each event is consumed once.
 7. Share multiple images; only the first imports and `extraCount` produces the user warning.

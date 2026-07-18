@@ -60,20 +60,16 @@ Dart converts all `PlatformException.code` values to stable `FailureCode` values
 
 Native components:
 
-- `ohos/entry/src/main/cpp/napi_init.cpp`: N-API module `offline_ocr`.
-- `offline_ocr.cpp`: image decode/preprocess, ncnn inference, CTC decode and line grouping.
-- `ppocrv5_dict.h`: PaddleOCR recognition character dictionary.
-- `third_party/ncnn-20260526-harmonyos/arm64-v8a/`: pinned HarmonyOS ncnn headers and static library.
+- `napi_init.cpp`: N-API async boundary; retains the ArkTS pixel buffer instead of making a second RGBA copy.
+- `ppocrv5.cpp`: pinned upstream PP-OCRv5 detector preprocessing, DB-map contour postprocessing, rotated crops and recognition CTC decoding.
+- `offline_ocr.cpp`: 1280 px overlapping tiles, duplicate suppression, reading-order sort and normalized block coordinates.
+- `third_party/ncnn-20260526-harmonyos/arm64-v8a/` and `third_party/opencv-mobile-4.13.0-harmonyos/arm64-v8a/`: pinned static runtimes.
 
-Packaged resources:
+The HAP packages both `PP_OCRv5_mobile_det` and `PP_OCRv5_mobile_rec` ncnn parameter/weight pairs, the recognition dictionary and license notices. ArkTS limits decode output to a 4096 px long side and 6 Mi pixels before allocating RGBA storage; native detection then tiles the bounded image so long screenshots do not collapse into one detector input.
 
-- `PP_OCRv5_mobile_rec.ncnn.param`
-- `PP_OCRv5_mobile_rec.ncnn.bin`
-- `THIRD_PARTY_NOTICES.txt`, `APACHE-2.0.txt`, `BSD-3-Clause.txt`
+The detector proposes text regions from its probability map. Regions are deduplicated and sorted top-to-bottom/left-to-right, perspective-oriented crops are passed to the recognizer, and CTC output becomes Flutter blocks. Provider values remain `coreVision`, `offline`, `mock`, or `none`. The offline mean token score is uncalibrated and is used only to reject low-quality native output; it is not exposed as line `confidence`, so both offline and Core Vision blocks preserve `null`.
 
-The model performs recognition; text-region proposals come from deterministic image preprocessing and connected-component grouping. Results are normalized to Flutter coordinates. Provider values are explicit: `coreVision`, `offline`, `mock`, or `none`. The bridge never labels offline output as Core Vision and never fabricates per-line confidence.
-
-A synthetic local smoke image was recognized as four expected Chinese lines by the same model/ncnn route. HarmonyOS runtime loading and camera/gallery image variability still require device verification.
+`tool/native_ocr_smoke.sh` compiles this same C++ det → rec path on macOS using checksum-pinned ncnn/OpenCV packages. Its deterministic ten-case gate covers white notification, dark chat, chat bubble, image/text mix, small text, two columns, low contrast, long screenshot, ticket layout and dense list; the current observed result is 9/10.
 
 ## 5. Share receiving
 
@@ -95,10 +91,12 @@ Form Kit files:
 
 - `ohos/entry/src/main/ets/form/FreshCueFormAbility.ets`: `FormExtensionAbility`; serves initial data from Preferences.
 - `ohos/entry/src/main/ets/form/pages/FreshCueCard.ets`: 2×4 ArkTS service-card UI.
-- `ohos/entry/src/main/resources/base/profile/form_config.json`: form declaration.
-- `FormPlugin.ets`: receives Flutter snapshots, stores JSON in Preferences, calls `formProvider.updateForm` for running `freshcue_cards` instances.
+- `ohos/entry/src/main/resources/base/profile/form_config.json`: dynamic (`isDynamic: true`) 2×4 declaration.
+- `FormPlugin.ets`: stores Flutter snapshots, builds `FormBindingData`, queries running forms and calls `formProvider.updateForm`.
 
 Snapshot contract: at most three records `{id, title, timeLabel}`. `AppController` sends only current active, non-expired cards and replaces sensitive titles with `敏感卡片`. Empty slots are overwritten during every update so removed cards do not remain visible. Tapping a row opens `freshcue://card/<id>`; tapping the empty state opens `freshcue://archive`.
+
+`FreshCueFormAbility` returns the same flattened fields through `formBindingData.createFormBindingData` on add and scheduled update. The 2×4 UI consumes them through `LocalStorageProp`; each `FormLink` uses the API 24 `router` action with a `freshcue://` URI.
 
 The Form Kit API surface and HAP compilation are verified. Adding the card, update delivery and deep-link behavior require device/launcher validation.
 
