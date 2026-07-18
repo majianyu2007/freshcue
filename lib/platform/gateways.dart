@@ -34,6 +34,27 @@ class OcrResultBlock {
   final int lineIndex;
 }
 
+enum OcrProvider {
+  coreVision,
+  offline,
+  mock,
+  none;
+
+  static OcrProvider fromWire(Object? value) => switch (value) {
+    'coreVision' => OcrProvider.coreVision,
+    'offline' => OcrProvider.offline,
+    'mock' => OcrProvider.mock,
+    _ => OcrProvider.none,
+  };
+
+  String get label => switch (this) {
+    OcrProvider.coreVision => 'Core Vision',
+    OcrProvider.offline => '离线 OCR',
+    OcrProvider.mock => '模拟 OCR',
+    OcrProvider.none => '不可用',
+  };
+}
+
 class OcrResult {
   const OcrResult({
     required this.requestId,
@@ -41,7 +62,7 @@ class OcrResult {
     required this.imageHeight,
     required this.fullText,
     required this.blocks,
-    required this.engine,
+    required this.provider,
     required this.durationMs,
   });
 
@@ -51,8 +72,8 @@ class OcrResult {
   final String fullText;
   final List<OcrResultBlock> blocks;
 
-  /// core_vision / mock。
-  final String engine;
+  /// 实际完成本次识别的提供方。
+  final OcrProvider provider;
   final int durationMs;
 }
 
@@ -156,16 +177,20 @@ abstract interface class ReminderGateway {
   Stream<ReminderActionEvent> get actions;
 }
 
-/// 实况窗能力（channel: freshcue/live_view）。默认 feature flag 关闭。
-abstract interface class LiveViewGateway {
-  Future<bool> isSupported();
-  Future<bool> isEnabledByUser();
-  Future<bool> hasEntitlement();
-  Future<void> startCountdown({
-    required String cardId,
-    required String title,
-    required DateTime targetAt,
-    required String scene,
+/// 服务卡片仅接收展示所需的脱敏快照，不访问 Flutter 数据库。
+class FormCardSnapshot {
+  const FormCardSnapshot({
+    required this.id,
+    required this.title,
+    required this.timeLabel,
   });
-  Future<void> stop(String cardId);
+
+  final String id;
+  final String title;
+  final String timeLabel;
+}
+
+/// Form Kit 服务卡片数据同步（channel: freshcue/forms）。
+abstract interface class FormGateway {
+  Future<void> updateCards(List<FormCardSnapshot> cards);
 }

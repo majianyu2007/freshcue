@@ -18,9 +18,6 @@ AppFailure _mapPlatformError(PlatformException e) {
     'ocr_failed' => FailureCode.ocrFailed,
     'cancelled' => FailureCode.cancelled,
     'reminder_failed' => FailureCode.reminderScheduleFailed,
-    'liveview_not_entitled' => FailureCode.liveViewNotEntitled,
-    'liveview_disabled' => FailureCode.liveViewDisabled,
-    'liveview_scene_unsupported' => FailureCode.liveViewSceneUnsupported,
     'uri_expired' => FailureCode.shareUriExpired,
     _ => FailureCode.unknown,
   };
@@ -54,7 +51,7 @@ class ChannelOcrGateway implements OcrGateway {
             'languageHints': languageHints,
             'detectOrientation': detectOrientation,
           })
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 45));
       if (raw == null) throw const AppFailure(FailureCode.ocrFailed);
       final blocks = (raw['blocks']! as List<Object?>)
           .map((b) => OcrResultBlock.fromMap(b! as Map<Object?, Object?>))
@@ -65,7 +62,7 @@ class ChannelOcrGateway implements OcrGateway {
         imageHeight: raw['imageHeight'] as int? ?? 0,
         fullText: raw['fullText'] as String? ?? '',
         blocks: blocks,
-        engine: raw['engine'] as String? ?? 'core_vision',
+        provider: OcrProvider.fromWire(raw['engine']),
         durationMs: raw['durationMs'] as int? ?? 0,
       );
     } on TimeoutException {
@@ -233,72 +230,22 @@ class ChannelReminderGateway implements ReminderGateway {
       });
 }
 
-class ChannelLiveViewGateway implements LiveViewGateway {
-  static const _channel = MethodChannel('freshcue/live_view');
+class ChannelFormGateway implements FormGateway {
+  static const _channel = MethodChannel('freshcue/forms');
 
   @override
-  Future<bool> isSupported() async {
+  Future<void> updateCards(List<FormCardSnapshot> cards) async {
     try {
-      return await _channel.invokeMethod<bool>('isSupported') ?? false;
-    } on PlatformException {
-      return false;
-    } on MissingPluginException {
-      return false;
-    }
-  }
-
-  @override
-  Future<bool> isEnabledByUser() async {
-    try {
-      return await _channel.invokeMethod<bool>('isEnabledByUser') ?? false;
-    } on PlatformException {
-      return false;
-    } on MissingPluginException {
-      return false;
-    }
-  }
-
-  @override
-  Future<bool> hasEntitlement() async {
-    try {
-      return await _channel.invokeMethod<bool>('hasEntitlement') ?? false;
-    } on PlatformException {
-      return false;
-    } on MissingPluginException {
-      return false;
-    }
-  }
-
-  @override
-  Future<void> startCountdown({
-    required String cardId,
-    required String title,
-    required DateTime targetAt,
-    required String scene,
-  }) async {
-    try {
-      await _channel.invokeMethod<void>('startCountdown', {
-        'cardId': cardId,
-        'title': title,
-        'targetAtMs': targetAt.millisecondsSinceEpoch,
-        'scene': scene,
+      await _channel.invokeMethod<void>('updateCards', {
+        'cards': [
+          for (final card in cards)
+            {'id': card.id, 'title': card.title, 'timeLabel': card.timeLabel},
+        ],
       });
-    } on PlatformException catch (e) {
-      throw _mapPlatformError(e);
     } on MissingPluginException {
-      throw const AppFailure(
-        FailureCode.liveViewNotEntitled,
-        debugDetail: 'no plugin',
-      );
-    }
-  }
-
-  @override
-  Future<void> stop(String cardId) async {
-    try {
-      await _channel.invokeMethod<void>('stop', {'cardId': cardId});
-    } on MissingPluginException {
-      // 忽略。
+      // Form Kit 是 OHOS 可选呈现层；其他平台无桥接时不影响核心流程。
+    } on PlatformException catch (error) {
+      throw AppFailure(FailureCode.unknown, debugDetail: error.code);
     }
   }
 }

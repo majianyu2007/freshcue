@@ -15,6 +15,7 @@ void main() {
             'compiled': true,
             'available': false,
             'reason': 'device_unsupported',
+            'provider': 'offline',
           },
           'reminders': <Object?, Object?>{'compiled': true, 'available': true},
         },
@@ -25,6 +26,7 @@ void main() {
       expect(caps.kit('ocr').compiled, isTrue);
       expect(caps.kit('ocr').available, isFalse);
       expect(caps.kit('ocr').reason, 'device_unsupported');
+      expect(caps.kit('ocr').provider, OcrProvider.offline);
       expect(caps.kit('reminders').available, isTrue);
     });
 
@@ -83,6 +85,23 @@ void main() {
         ).reasonLabel,
         '实验开关未启用',
       );
+    });
+  });
+
+  group('OCR provider contract', () {
+    test('wire values are explicit and unknown values fail closed', () {
+      expect(OcrProvider.fromWire('coreVision'), OcrProvider.coreVision);
+      expect(OcrProvider.fromWire('offline'), OcrProvider.offline);
+      expect(OcrProvider.fromWire('mock'), OcrProvider.mock);
+      expect(OcrProvider.fromWire('core_vision'), OcrProvider.none);
+      expect(OcrProvider.fromWire(null), OcrProvider.none);
+    });
+
+    test('provider labels are user-facing and unambiguous', () {
+      expect(OcrProvider.coreVision.label, 'Core Vision');
+      expect(OcrProvider.offline.label, '离线 OCR');
+      expect(OcrProvider.mock.label, '模拟 OCR');
+      expect(OcrProvider.none.label, '不可用');
     });
   });
 

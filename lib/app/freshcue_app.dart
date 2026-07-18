@@ -61,6 +61,13 @@ class _AppShellState extends State<AppShell> {
     onboardingDone = !widget.showOnboarding;
     widget.controller.pendingRoute.addListener(_onPendingRoute);
     widget.controller.addListener(_maybeOpenSharedDraft);
+    // controller.start() 在 runApp 前完成；冷启动分享/通知可能已写入状态，
+    // 因此监听器注册后必须主动消费一次，而不能只等后续变更。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _maybeOpenSharedDraft();
+      _onPendingRoute();
+    });
   }
 
   @override

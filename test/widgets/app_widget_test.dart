@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:freshcue/app/app_controller.dart';
 import 'package:freshcue/app/freshcue_app.dart';
 import 'package:freshcue/core/clock/clock.dart';
+import 'package:freshcue/core/errors/app_failure.dart';
 import 'package:freshcue/core/utils/id_gen.dart';
 import 'package:freshcue/domain/entities/temporal_card.dart';
 import 'package:freshcue/domain/enums/enums.dart';
@@ -14,17 +15,19 @@ void main() {
   final now = DateTime(2026, 7, 18, 10, 0);
   late FixedClock clock;
   late MockReminderGateway reminderGateway;
+  late MockFormGateway formGateway;
   late AppController controller;
 
   setUp(() {
     clock = FixedClock(now);
     reminderGateway = MockReminderGateway(clock);
+    formGateway = MockFormGateway();
     controller = createMemoryAppController(
       clock: clock,
       ocr: MockOcrGateway(),
       share: MockShareGateway(),
       reminderGateway: reminderGateway,
-      liveView: MockLiveViewGateway(),
+      formGateway: formGateway,
       sandboxDir: '/tmp/freshcue_test_sandbox',
     );
   });
@@ -80,6 +83,20 @@ void main() {
     expect(find.textContaining('A•••1'), findsOneWidget);
   });
 
+  test('服务卡片快照只发布未完成卡片并遮罩敏感标题', () async {
+    await seedCard();
+    final sensitive = await seedCard(sensitive: true);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(formGateway.cards, hasLength(2));
+    final snapshot = formGateway.cards.singleWhere(
+      (card) => card.id == sensitive.id,
+    );
+    expect(snapshot.title, '敏感卡片');
+    expect(snapshot.title, isNot(contains('A7281')));
+    expect(snapshot.timeLabel, isNotEmpty);
+  });
+
   testWidgets('确认页：低置信度提示 + 多时间分组 + 提醒预览', (tester) async {
     controller.importManualText(
       '校园创新体验日\n报名截止：7月20日 18:00\n活动时间：7月25日 14:00\n本周五 18:00 交材料',
@@ -97,11 +114,57 @@ void main() {
     expect(find.textContaining('将创建'), findsOneWidget);
   });
 
+  testWidgets('确认页显示实际 OCR provider', (tester) async {
+    final imported = await tester.runAsync(controller.importDemo);
+    expect(imported, isTrue, reason: controller.importFailure.toString());
+    await tester.pumpWidget(
+      MaterialApp(home: ReviewPage(controller: controller)),
+    );
+    await tester.pump();
+    expect(find.text('识别来源：模拟 OCR'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.cancelImport();
+  });
+
+  testWidgets('OCR 全部失败仍进入可编辑确认页', (tester) async {
+    controller = createMemoryAppController(
+      clock: clock,
+      ocr: _FailingOcrGateway(),
+      share: MockShareGateway(),
+      reminderGateway: reminderGateway,
+      formGateway: MockFormGateway(),
+      sandboxDir: '/tmp/freshcue_test_sandbox',
+    );
+    final imported = await tester.runAsync(
+      () => controller.importFromBytes(
+        tinyPngBytes(),
+        source: ImportSource.gallery,
+      ),
+    );
+    expect(imported, isTrue);
+    expect(controller.pendingDraft, isNotNull);
+    expect(controller.pendingDraft!.ocrProvider, OcrProvider.none);
+    expect(controller.importFailure?.code, FailureCode.ocrFailed);
+
+    await tester.pumpWidget(
+      MaterialApp(home: ReviewPage(controller: controller)),
+    );
+    await tester.pump();
+    expect(find.textContaining('自动识别失败'), findsOneWidget);
+    expect(find.byType(TextField), findsAtLeast(2));
+    await tester.dragUntilVisible(
+      find.text('添加时间'),
+      find.byType(Scrollable).first,
+      const Offset(0, -300),
+    );
+    expect(find.text('添加时间'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.cancelImport();
+  });
+
   testWidgets('确认草稿后首页出现卡片，权限拒绝时提示未启用', (tester) async {
     reminderGateway.permissionGranted = false;
     controller.importManualText('报名截止：7月20日 18:00 交材料');
-    await tester.pumpWidget(app());
-    await tester.pumpAndSettle();
 
     final (id, failures) = await controller.confirmDraft(
       title: '交材料',
@@ -110,6 +173,7 @@ void main() {
     );
     expect(failures, -1); // 权限被拒：卡片保存、提醒未启用
     expect(id, isNotEmpty);
+    await tester.pumpWidget(app());
     await tester.pumpAndSettle();
     expect(find.text('交材料'), findsOneWidget);
     expect(reminderGateway.scheduled, isEmpty);
@@ -163,6 +227,21 @@ void main() {
     expect(find.text('恢复并重设时间'), findsOneWidget);
   });
 
+  testWidgets('冷启动分享草稿在首帧自动打开确认页', (tester) async {
+    controller.importManualText('报名截止：7月20日 18:00');
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    expect(find.text('确认时效卡片'), findsOneWidget);
+  });
+
+  testWidgets('冷启动通知深链在首帧打开目标卡片', (tester) async {
+    final card = await seedCard();
+    controller.pendingRoute.value = 'freshcue://card/${card.id}';
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    expect(find.text('提醒时间线'), findsOneWidget);
+  });
+
   testWidgets('通知 complete 行为使卡片完成', (tester) async {
     final card = await seedCard();
     await controller.start();
@@ -181,4 +260,18 @@ void main() {
       CardStatus.completed,
     );
   });
+}
+
+class _FailingOcrGateway implements OcrGateway {
+  @override
+  Future<bool> isAvailable() async => false;
+
+  @override
+  Future<OcrResult> recognizeImage({
+    required String sandboxPath,
+    List<String> languageHints = const ['zh-Hans'],
+    bool detectOrientation = true,
+  }) async {
+    throw const AppFailure(FailureCode.ocrFailed);
+  }
 }

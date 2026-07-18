@@ -1,0 +1,25 @@
+FreshCue offline OCR third-party notices
+
+1. ncnn 20260526 (HarmonyOS arm64-v8a static runtime)
+   Source: https://github.com/Tencent/ncnn/releases/tag/20260526
+   License: BSD 3-Clause; full text in BSD-3-Clause.txt.
+   libncnn.a SHA-256:
+   2127667753672f75bb042fe89c8b0786c56e274e93db0680f26b24d61554aeeb
+
+2. PP-OCRv5 mobile recognition model
+   Upstream model: PaddleOCR / PP-OCRv5_mobile_rec
+   Source: https://github.com/PaddlePaddle/PaddleOCR
+   ncnn conversion source: https://github.com/nihui/ncnn-android-ppocrv5
+   License: Apache License 2.0; full text in APACHE-2.0.txt.
+   Param SHA-256:
+   f52a6586ac3338d8c350db0c9f3c55ff2ecd3763327f9bc7f0efc091f8a63e74
+   Weights SHA-256:
+   49d9907a55ba20fa6637f9f788f66ab00793bc8ce57a733a09dbe86b9a2e3db0
+
+3. PP-OCRv5 character dictionary and reference decoding logic
+   Source: https://github.com/nihui/ncnn-android-ppocrv5
+   Copyright (C) 2025 THL A29 Limited, a Tencent company.
+   License: BSD 3-Clause; full text in BSD-3-Clause.txt.
+
+The model and runtime are bundled in the HAP and execute entirely on-device.
+FreshCue does not upload OCR inputs or results.

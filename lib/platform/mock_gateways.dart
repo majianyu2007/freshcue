@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import '../core/clock/clock.dart';
@@ -46,7 +47,7 @@ class MockOcrGateway implements OcrGateway {
             lineIndex: i,
           ),
       ],
-      engine: 'mock',
+      provider: OcrProvider.mock,
       durationMs: 400,
     );
   }
@@ -113,100 +114,18 @@ class MockReminderGateway implements ReminderGateway {
   Stream<ReminderActionEvent> get actions => _actions.stream;
 }
 
-class MockLiveViewGateway implements LiveViewGateway {
-  final Map<String, DateTime> active = {};
-  bool supported = true;
-  bool enabled = true;
-  bool entitled = true;
+class MockFormGateway implements FormGateway {
+  List<FormCardSnapshot> cards = const [];
 
   @override
-  Future<bool> isSupported() async => supported;
-
-  @override
-  Future<bool> isEnabledByUser() async => enabled;
-
-  @override
-  Future<bool> hasEntitlement() async => entitled;
-
-  @override
-  Future<void> startCountdown({
-    required String cardId,
-    required String title,
-    required DateTime targetAt,
-    required String scene,
-  }) async => active[cardId] = targetAt;
-
-  @override
-  Future<void> stop(String cardId) async => active.remove(cardId);
+  Future<void> updateCards(List<FormCardSnapshot> cards) async {
+    this.cards = List.unmodifiable(cards);
+  }
 }
 
-/// 生成 1x1 PNG 字节（测试与 Mock 分享用，不含个人信息）。
-Uint8List tinyPngBytes() => Uint8List.fromList(const [
-  0x89,
-  0x50,
-  0x4E,
-  0x47,
-  0x0D,
-  0x0A,
-  0x1A,
-  0x0A,
-  0x00,
-  0x00,
-  0x00,
-  0x0D,
-  0x49,
-  0x48,
-  0x44,
-  0x52,
-  0x00,
-  0x00,
-  0x00,
-  0x01,
-  0x00,
-  0x00,
-  0x00,
-  0x01,
-  0x08,
-  0x06,
-  0x00,
-  0x00,
-  0x00,
-  0x1F,
-  0x15,
-  0xC4,
-  0x89,
-  0x00,
-  0x00,
-  0x00,
-  0x0D,
-  0x49,
-  0x44,
-  0x41,
-  0x54,
-  0x78,
-  0x9C,
-  0x62,
-  0x00,
-  0x01,
-  0x00,
-  0x00,
-  0x05,
-  0x00,
-  0x01,
-  0x0D,
-  0x0A,
-  0x2D,
-  0xB4,
-  0x00,
-  0x00,
-  0x00,
-  0x00,
-  0x49,
-  0x45,
-  0x4E,
-  0x44,
-  0xAE,
-  0x42,
-  0x60,
-  0x82,
-]);
+/// 生成 64x64 PNG 字节（测试与 Mock 分享用，不含个人信息）。
+Uint8List tinyPngBytes() => base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAZ0lEQVR42u3QsQ0AIAgAMOT/'
+  'd42JC/wB7Qk99/2KxTKWEyBAgAABAgQIECBAgAABAgQIECBAgAABAgQIECBAgAABAgQIECBAgAAB'
+  'AgQIECBAgAABAgQIECBAgAABAgQIECBAgAABEzSPSQRlWU94vAAAAABJRU5ErkJggg==',
+);

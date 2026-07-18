@@ -1,0 +1,24 @@
+{
+  "forms": [
+    {
+      "name": "freshcue_cards",
+      "displayName": "$string:freshcue_form_name",
+      "description": "$string:freshcue_form_desc",
+      "src": "./ets/form/pages/FreshCueCard.ets",
+      "uiSyntax": "arkts",
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDynamic": false,
+      "isDefault": true,
+      "updateEnabled": true,
+      "updateDuration": 1,
+      "defaultDimension": "2*4",
+      "supportDimensions": [
+        "2*4"
+      ]
+    }
+  ]
+}

@@ -51,14 +51,6 @@ class _SettingsPageState extends State<SettingsPage> {
               title: Text('数据不出设备'),
               subtitle: Text('截图、识别文字与提醒全部保存在本机，无网络权限'),
             ),
-            const _SectionHeader('实验能力'),
-            SwitchListTile(
-              secondary: const Icon(Icons.timelapse),
-              title: const Text('实况窗倒计时'),
-              subtitle: const Text('需要设备权益，默认关闭；不可用时回退普通通知'),
-              value: false,
-              onChanged: null, // feature flag：真机权益验证前不可开启
-            ),
             const _SectionHeader('关于'),
             ListTile(
               leading: const Icon(Icons.info_outline),

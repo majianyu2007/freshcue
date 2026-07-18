@@ -1,8 +1,5 @@
-// Core Vision 通用文字识别桥接。channel: freshcue/ocr
-// API 依据本机 HarmonyOS SDK (API 24) 的 @hms.ai.ocr.textRecognition：
-//   recognizeText(VisionInfo, config?): Promise<TextRecognitionResult>
-//   结果 blocks[].lines[] 含 value + cornerPoints(多边形)，无逐行 confidence。
-// 文档: https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/core-vision-text-recognition
+// OCR bridge. Core Vision is preferred; bundled PP-OCRv5/ncnn is the
+// distributable offline fallback. Channel: freshcue/ocr.
 import {
   FlutterPlugin,
   FlutterPluginBinding,
@@ -14,41 +11,95 @@ import {
 import { textRecognition } from '@kit.CoreVisionKit';
 import { image } from '@kit.ImageKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import util from '@ohos.util';
+import offlineOcr from 'libentry.so';
 import { CapabilityRegistry } from './CapabilitiesPlugin';
+
+interface NativeOcrBlock {
+  text: string;
+  confidence: number;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  lineIndex: number;
+}
 
 export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
   private channel: MethodChannel | null = null;
+  private resources: resourceManager.ResourceManager | null = null;
+  private offlineLoad: Promise<boolean> | null = null;
 
   getUniqueClassName(): string {
     return 'OcrPlugin';
   }
 
   onAttachedToEngine(binding: FlutterPluginBinding): void {
+    this.resources = binding.getApplicationContext().resourceManager;
     this.channel = new MethodChannel(binding.getBinaryMessenger(), 'freshcue/ocr');
     this.channel.setMethodCallHandler(this);
-    // 编译接入即 compiled=true；available 由 syscap 决定。
-    const available = canIUse('SystemCapability.AI.OCR.TextRecognition');
-    CapabilityRegistry.mark('ocr', true, available,
-      available ? '' : 'device_unsupported');
+    const coreAvailable = canIUse('SystemCapability.AI.OCR.TextRecognition');
+    CapabilityRegistry.mark('ocr', true, true, '', coreAvailable ? 'coreVision' : 'offline');
+    if (!coreAvailable) {
+      this.ensureOfflineReady().then((ready: boolean) => {
+        CapabilityRegistry.mark('ocr', true, ready,
+          ready ? '' : 'offline_model_failed', ready ? 'offline' : 'none');
+      });
+    }
   }
 
   onDetachedFromEngine(_binding: FlutterPluginBinding): void {
     this.channel?.setMethodCallHandler(null);
     this.channel = null;
+    this.resources = null;
   }
 
   onMethodCall(call: MethodCall, result: MethodResult): void {
     switch (call.method) {
       case 'isAvailable':
-        result.success(canIUse('SystemCapability.AI.OCR.TextRecognition'));
+        this.reportAvailability(result);
         break;
       case 'recognizeImage':
         this.recognize(call, result);
         break;
       default:
         result.notImplemented();
+    }
+  }
+
+  private async reportAvailability(result: MethodResult): Promise<void> {
+    if (canIUse('SystemCapability.AI.OCR.TextRecognition')) {
+      result.success(true);
+      return;
+    }
+    result.success(await this.ensureOfflineReady());
+  }
+
+  private async ensureOfflineReady(): Promise<boolean> {
+    if (offlineOcr.isReady()) {
+      return true;
+    }
+    if (this.offlineLoad !== null) {
+      return this.offlineLoad;
+    }
+    this.offlineLoad = this.loadOfflineModel();
+    return this.offlineLoad;
+  }
+
+  private async loadOfflineModel(): Promise<boolean> {
+    if (this.resources === null) {
+      return false;
+    }
+    try {
+      const param = await this.resources.getRawFileContent(
+        'ocr/PP_OCRv5_mobile_rec.ncnn.param');
+      const model = await this.resources.getRawFileContent(
+        'ocr/PP_OCRv5_mobile_rec.ncnn.bin');
+      return offlineOcr.loadModel(param.buffer as ArrayBuffer, model.buffer as ArrayBuffer);
+    } catch (_e) {
+      return false;
     }
   }
 
@@ -62,27 +113,66 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
     let file: fs.File | null = null;
     let source: image.ImageSource | null = null;
     let pixelMap: image.PixelMap | null = null;
-    let inited = false;
     try {
       file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
       source = image.createImageSource(file.fd);
-      pixelMap = await source.createPixelMap();
+      pixelMap = await source.createPixelMap({
+        desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
+      });
       const info = await pixelMap.getImageInfo();
-      const w = info.size.width;
-      const h = info.size.height;
+      const width = info.size.width;
+      const height = info.size.height;
 
+      if (canIUse('SystemCapability.AI.OCR.TextRecognition')) {
+        try {
+          const corePayload = await this.recognizeWithCoreVision(
+            pixelMap, width, height, start);
+          if ((corePayload['fullText'] as string).trim().length > 0) {
+            CapabilityRegistry.mark('ocr', true, true, '', 'coreVision');
+            result.success(corePayload);
+            return;
+          }
+        } catch (_coreError) {
+          // Continue with the bundled provider. Manual entry remains available
+          // in Flutter if both providers fail.
+        }
+      }
+
+      const offlinePayload = await this.recognizeWithOffline(
+        pixelMap, width, height, start);
+      CapabilityRegistry.mark('ocr', true, true, '', 'offline');
+      result.success(offlinePayload);
+    } catch (e) {
+      const err = e as BusinessError;
+      const detail = err.code === undefined ? 'offline_failed' : `code=${err.code}`;
+      CapabilityRegistry.mark('ocr', true, false, 'runtime_failure', 'none');
+      result.error('ocr_failed', detail, null);
+    } finally {
+      pixelMap?.release();
+      source?.release();
+      if (file !== null) {
+        try { fs.closeSync(file); } catch (_e) { /* ignore */ }
+      }
+    }
+  }
+
+  private async recognizeWithCoreVision(
+    pixelMap: image.PixelMap,
+    width: number,
+    height: number,
+    start: number,
+  ): Promise<Record<string, Object>> {
+    let initialized = false;
+    try {
       await textRecognition.init();
-      inited = true;
-      const visionInfo: textRecognition.VisionInfo = { pixelMap: pixelMap };
-      const data = await textRecognition.recognizeText(visionInfo,
-        { isDirectionDetectionSupported: true });
-
+      initialized = true;
+      const data = await textRecognition.recognizeText(
+        { pixelMap: pixelMap }, { isDirectionDetectionSupported: true });
       const blocks: Array<Record<string, Object>> = [];
       let lineIndex = 0;
       for (const block of data.blocks) {
         for (const line of block.lines) {
-          const box = OcrPlugin.boundingBox(line.cornerPoints, w, h);
-          // 无逐行 confidence → 不写该字段，Flutter 侧读为 null。
+          const box = OcrPlugin.boundingBox(line.cornerPoints, width, height);
           blocks.push({
             'text': line.value,
             'left': box[0],
@@ -94,49 +184,78 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
           lineIndex++;
         }
       }
-
-      const payload: Record<string, Object> = {
-        'requestId': util.generateRandomUUID(),
-        'imageWidth': w,
-        'imageHeight': h,
-        'fullText': data.value,
-        'blocks': blocks,
-        'engine': 'core_vision',
-        'durationMs': Date.now() - start,
-      };
-      result.success(payload);
-    } catch (e) {
-      const err = e as BusinessError;
-      result.error('ocr_failed', `code=${err.code}`, null);
+      return this.payload(width, height, data.value, blocks, 'coreVision', start);
     } finally {
-      if (inited) {
+      if (initialized) {
         try { await textRecognition.release(); } catch (_e) { /* ignore */ }
-      }
-      pixelMap?.release();
-      source?.release();
-      if (file !== null) {
-        try { fs.closeSync(file); } catch (_e) { /* ignore */ }
       }
     }
   }
 
-  /// 多边形角点 → 归一化包围盒 [left, top, right, bottom]（0~1）。
+  private async recognizeWithOffline(
+    pixelMap: image.PixelMap,
+    width: number,
+    height: number,
+    start: number,
+  ): Promise<Record<string, Object>> {
+    if (!await this.ensureOfflineReady()) {
+      throw new Error('offline_model_failed');
+    }
+    const pixels = new ArrayBuffer(width * height * 4);
+    await pixelMap.readPixelsToBuffer(pixels);
+    const nativeBlocks = await offlineOcr.recognize(pixels, width, height) as Array<NativeOcrBlock>;
+    if (nativeBlocks.length === 0) {
+      throw new Error('offline_no_text');
+    }
+    const blocks: Array<Record<string, Object>> = nativeBlocks.map(
+      (block: NativeOcrBlock): Record<string, Object> => ({
+        'text': block.text,
+        'confidence': block.confidence,
+        'left': block.left,
+        'top': block.top,
+        'right': block.right,
+        'bottom': block.bottom,
+        'lineIndex': block.lineIndex,
+      }));
+    const fullText = nativeBlocks.map((block: NativeOcrBlock): string => block.text).join('\n');
+    return this.payload(width, height, fullText, blocks, 'offline', start);
+  }
+
+  private payload(
+    width: number,
+    height: number,
+    fullText: string,
+    blocks: Array<Record<string, Object>>,
+    provider: string,
+    start: number,
+  ): Record<string, Object> {
+    return {
+      'requestId': util.generateRandomUUID(),
+      'imageWidth': width,
+      'imageHeight': height,
+      'fullText': fullText,
+      'blocks': blocks,
+      'engine': provider,
+      'durationMs': Date.now() - start,
+    };
+  }
+
   private static boundingBox(
-    points: Array<textRecognition.PixelPoint>, w: number, h: number,
+    points: Array<textRecognition.PixelPoint>, width: number, height: number,
   ): Array<number> {
-    if (points.length === 0 || w === 0 || h === 0) {
+    if (points.length === 0 || width === 0 || height === 0) {
       return [0, 0, 0, 0];
     }
     let minX = points[0].x;
     let maxX = points[0].x;
     let minY = points[0].y;
     let maxY = points[0].y;
-    for (const p of points) {
-      if (p.x < minX) { minX = p.x; }
-      if (p.x > maxX) { maxX = p.x; }
-      if (p.y < minY) { minY = p.y; }
-      if (p.y > maxY) { maxY = p.y; }
+    for (const point of points) {
+      minX = Math.min(minX, point.x);
+      maxX = Math.max(maxX, point.x);
+      minY = Math.min(minY, point.y);
+      maxY = Math.max(maxY, point.y);
     }
-    return [minX / w, minY / h, maxX / w, maxY / h];
+    return [minX / width, minY / height, maxX / width, maxY / height];
   }
 }

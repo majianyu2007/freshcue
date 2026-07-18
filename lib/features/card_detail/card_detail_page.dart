@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../app/theme.dart';
-import '../../core/errors/app_failure.dart';
 import '../../core/utils/redactor.dart';
 import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
@@ -170,8 +169,6 @@ class _CardDetailPageState extends State<CardDetailPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          _liveViewButton(card, now),
           const SizedBox(height: 32),
         ],
       ),
@@ -248,51 +245,6 @@ class _CardDetailPageState extends State<CardDetailPage> {
       );
     },
   );
-
-  Widget _liveViewButton(TemporalCard card, DateTime now) {
-    // 只在 pickup/ticket/短时 event 且有未来关键时间时提供入口。
-    final eligible = switch (card.category) {
-      CardCategory.pickup || CardCategory.ticket => true,
-      CardCategory.event => true,
-      _ => false,
-    };
-    final next = card.nextKeyTime(now);
-    if (!eligible || next == null || card.status != CardStatus.active) {
-      return const SizedBox.shrink();
-    }
-    return OutlinedButton.icon(
-      icon: const Icon(Icons.timelapse),
-      label: const Text('开启实况胶囊（实验能力）'),
-      onPressed: () async {
-        final lv = widget.controller.liveView;
-        try {
-          if (!await lv.isSupported() || !await lv.hasEntitlement()) {
-            throw const AppFailure(FailureCode.liveViewNotEntitled);
-          }
-          if (!await lv.isEnabledByUser()) {
-            throw const AppFailure(FailureCode.liveViewDisabled);
-          }
-          await lv.startCountdown(
-            cardId: card.id,
-            title: card.title,
-            targetAt: next.$2,
-            scene: card.category.name,
-          );
-          if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('实况胶囊已开启（实验能力）')));
-          }
-        } on AppFailure catch (f) {
-          if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(f.userMessage)));
-          }
-        }
-      },
-    );
-  }
 
   Future<void> _editTime(TemporalCard card) async {
     final now = widget.controller.clock.now();

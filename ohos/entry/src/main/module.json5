@@ -44,7 +44,7 @@
             ]
           },
           {
-            // 深链：freshcue://card/...（通知/实况窗点击路由，见 ReminderPlugin）。
+            // 深链：通知与服务卡片点击均进入统一 Flutter 路由。
             "actions": [
               "ohos.want.action.viewData"
             ],
@@ -53,6 +53,21 @@
                 "scheme": "freshcue"
               }
             ]
+          }
+        ]
+      }
+    ],
+    "extensionAbilities": [
+      {
+        "name": "FreshCueFormAbility",
+        "srcEntry": "./ets/form/FreshCueFormAbility.ets",
+        "label": "$string:freshcue_form_name",
+        "description": "$string:freshcue_form_desc",
+        "type": "form",
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
           }
         ]
       }

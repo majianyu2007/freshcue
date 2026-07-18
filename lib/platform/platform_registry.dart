@@ -17,7 +17,7 @@ class PlatformRegistry {
     required this.ocr,
     required this.share,
     required this.reminders,
-    required this.liveView,
+    required this.forms,
     required this.usingMocks,
     required this.capabilities,
   });
@@ -25,7 +25,7 @@ class PlatformRegistry {
   final OcrGateway ocr;
   final ShareGateway share;
   final ReminderGateway reminders;
-  final LiveViewGateway liveView;
+  final FormGateway forms;
   final bool usingMocks;
   final PlatformCapabilities capabilities;
 
@@ -52,7 +52,7 @@ class PlatformRegistry {
         ocr: MockOcrGateway(),
         share: MockShareGateway(),
         reminders: MockReminderGateway(clock),
-        liveView: MockLiveViewGateway(),
+        forms: MockFormGateway(),
         usingMocks: true,
         capabilities: caps,
       );
@@ -61,7 +61,7 @@ class PlatformRegistry {
       ocr: ChannelOcrGateway(),
       share: ChannelShareGateway(),
       reminders: ChannelReminderGateway(),
-      liveView: ChannelLiveViewGateway(),
+      forms: ChannelFormGateway(),
       usingMocks: false,
       capabilities: caps,
     );

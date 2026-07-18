@@ -15,13 +15,25 @@ export interface KitStatus {
   compiled: boolean;
   available: boolean;
   reason: string;
+  provider: string;
 }
 
 export class CapabilityRegistry {
   static readonly kits = new Map<string, KitStatus>();
 
-  static mark(name: string, compiled: boolean, available: boolean, reason: string): void {
-    CapabilityRegistry.kits.set(name, { compiled: compiled, available: available, reason: reason });
+  static mark(
+    name: string,
+    compiled: boolean,
+    available: boolean,
+    reason: string,
+    provider: string = '',
+  ): void {
+    CapabilityRegistry.kits.set(name, {
+      compiled: compiled,
+      available: available,
+      reason: reason,
+      provider: provider,
+    });
   }
 }
 
@@ -56,6 +68,7 @@ export class CapabilitiesPlugin implements FlutterPlugin, MethodCallHandler {
             'compiled': status.compiled,
             'available': status.available,
             'reason': status.reason,
+            'provider': status.provider,
           } as Record<string, Object>;
         });
         const payload: Record<string, Object> = {

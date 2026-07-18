@@ -76,33 +76,57 @@ class CardService {
     TemporalCard card,
     List<ReminderInstance> instances,
   ) async {
+    try {
+      // 先持久化调度意图。进程若在平台调用中途退出，reconcile 可补建，
+      // 不会留下数据库完全不知道的系统提醒。
+      await reminders.replaceInstances(card.id, instances);
+    } catch (e) {
+      throw AppFailure(
+        FailureCode.databaseWriteFailed,
+        debugDetail: e.runtimeType.toString(),
+      );
+    }
+
     var failures = 0;
-    final saved = <ReminderInstance>[];
-    for (final inst in instances) {
+    final available = instances.isEmpty || await reminderGateway.isAvailable();
+    for (final instance in instances) {
+      ReminderInstance saved;
+      int? platformId;
       try {
-        final available = await reminderGateway.isAvailable();
         if (!available) {
           throw const AppFailure(
             FailureCode.reminderScheduleFailed,
             debugDetail: 'gateway unavailable',
           );
         }
-        final pid = await reminderGateway.scheduleCalendarReminder(
-          _payloadFor(card, inst),
+        platformId = await reminderGateway.scheduleCalendarReminder(
+          _payloadFor(card, instance),
         );
-        saved.add(inst.copyWith(platformReminderId: pid));
-      } on AppFailure catch (f) {
+        saved = instance.copyWith(platformReminderId: platformId);
+      } on AppFailure catch (failure) {
         failures++;
-        AppLog.w('reminder', '调度失败: ${f.code.name}');
-        saved.add(
-          inst.copyWith(
-            status: ReminderStatus.failed,
-            failureReason: f.code.name,
-          ),
+        AppLog.w('reminder', '调度失败: ${failure.code.name}');
+        saved = instance.copyWith(
+          status: ReminderStatus.failed,
+          failureReason: failure.code.name,
+        );
+      }
+      try {
+        await reminders.saveInstance(saved);
+      } catch (e) {
+        if (platformId != null) {
+          try {
+            await reminderGateway.cancelReminder(platformId);
+          } on AppFailure catch (failure) {
+            AppLog.w('reminder', '回滚提醒失败: ${failure.code.name}');
+          }
+        }
+        throw AppFailure(
+          FailureCode.databaseWriteFailed,
+          debugDetail: e.runtimeType.toString(),
         );
       }
     }
-    await reminders.replaceInstances(card.id, saved);
     return failures;
   }
 

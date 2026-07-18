@@ -41,6 +41,7 @@ class DraftContext {
     required this.asset,
     required this.blocks,
     required this.capturedAt,
+    required this.ocrProvider,
     this.duplicateOfCardId,
   });
 
@@ -48,6 +49,7 @@ class DraftContext {
   final SourceAsset? asset;
   final List<OcrBlock> blocks;
   final DateTime capturedAt;
+  final OcrProvider ocrProvider;
 
   /// 相同 SHA-256 的已有卡片（提示用户而非静默丢弃）。
   final String? duplicateOfCardId;
@@ -66,7 +68,7 @@ class AppController extends ChangeNotifier {
     required this.ocr,
     required this.share,
     required this.reminderGateway,
-    required this.liveView,
+    required this.formGateway,
     required this.clock,
     required this.usingMockPlatform,
     this.capabilities = const PlatformCapabilities.unbridged(),
@@ -84,7 +86,7 @@ class AppController extends ChangeNotifier {
   final OcrGateway ocr;
   final ShareGateway share;
   final ReminderGateway reminderGateway;
-  final LiveViewGateway liveView;
+  final FormGateway formGateway;
   final Clock clock;
   final bool usingMockPlatform;
 
@@ -163,6 +165,34 @@ class AppController extends ChangeNotifier {
       CardStatus.archived,
     });
     notifyListeners();
+    unawaited(_publishFormCards(now));
+  }
+
+  Future<void> _publishFormCards(DateTime now) async {
+    final snapshots = <FormCardSnapshot>[
+      for (final card in activeCards.take(4))
+        FormCardSnapshot(
+          id: card.id,
+          title: card.isSensitive ? '敏感卡片' : card.title,
+          timeLabel: _formTimeLabel(card, now),
+        ),
+    ];
+    try {
+      await formGateway.updateCards(snapshots);
+    } on AppFailure catch (failure) {
+      AppLog.w('forms', '服务卡片同步失败: ${failure.code.name}');
+    } on Object catch (error) {
+      AppLog.e('forms', '服务卡片同步异常', error);
+    }
+  }
+
+  String _formTimeLabel(TemporalCard card, DateTime now) {
+    final next = card.nextKeyTime(now);
+    if (next == null) return '暂无关键时间';
+    final time = next.$2;
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${next.$1.label} ${time.month}/${time.day} '
+        '${two(time.hour)}:${two(time.minute)}';
   }
 
   int _byNextKeyTime(TemporalCard a, TemporalCard b) {
@@ -185,13 +215,19 @@ class AppController extends ChangeNotifier {
     );
   }
 
-  void _onAction(ReminderActionEvent e) {
+  void _onAction(ReminderActionEvent event) {
     unawaited(() async {
-      await cardService.handleAction(e);
-      await refresh();
-      if (e.action == ReminderActionType.opened ||
-          e.action == ReminderActionType.viewSource) {
-        pendingRoute.value = 'freshcue://card/${e.cardId}';
+      try {
+        await cardService.handleAction(event);
+        await refresh();
+        if (event.action == ReminderActionType.opened ||
+            event.action == ReminderActionType.viewSource) {
+          pendingRoute.value = 'freshcue://card/${event.cardId}';
+        }
+      } on AppFailure catch (failure) {
+        AppLog.w('reminder', '处理提醒动作失败: ${failure.code.name}');
+      } on Object catch (error) {
+        AppLog.e('reminder', '处理提醒动作异常', error);
       }
     }());
   }
@@ -258,6 +294,7 @@ class AppController extends ChangeNotifier {
         asset: asset,
         blocks: blocks,
         capturedAt: now,
+        ocrProvider: result?.provider ?? OcrProvider.none,
         duplicateOfCardId: dupCard,
       );
       _setStage(ImportStage.done);
@@ -279,6 +316,7 @@ class AppController extends ChangeNotifier {
 
   /// 手动文本降级：用户粘贴文字建卡。
   void importManualText(String text) {
+    importFailure = null;
     final now = clock.now();
     final draft = _parser.parseText(text, now);
     pendingDraft = DraftContext(
@@ -286,6 +324,7 @@ class AppController extends ChangeNotifier {
       asset: null,
       blocks: const [],
       capturedAt: now,
+      ocrProvider: OcrProvider.none,
     );
     importStage = ImportStage.done;
     notifyListeners();
@@ -295,6 +334,7 @@ class AppController extends ChangeNotifier {
     final ctx = pendingDraft;
     if (ctx?.asset != null) assetService.cleanup(ctx!.asset!);
     pendingDraft = null;
+    importFailure = null;
     importStage = ImportStage.idle;
     notifyListeners();
   }
@@ -409,7 +449,7 @@ AppController createMemoryAppController({
   required OcrGateway ocr,
   required ShareGateway share,
   required ReminderGateway reminderGateway,
-  required LiveViewGateway liveView,
+  required FormGateway formGateway,
   required String sandboxDir,
   bool usingMockPlatform = true,
   PlatformCapabilities capabilities = const PlatformCapabilities.unbridged(),
@@ -438,7 +478,7 @@ AppController createMemoryAppController({
     ocr: ocr,
     share: share,
     reminderGateway: reminderGateway,
-    liveView: liveView,
+    formGateway: formGateway,
     clock: clock,
     usingMockPlatform: usingMockPlatform,
     capabilities: capabilities,
@@ -452,7 +492,7 @@ AppController createSqlAppController({
   required OcrGateway ocr,
   required ShareGateway share,
   required ReminderGateway reminderGateway,
-  required LiveViewGateway liveView,
+  required FormGateway formGateway,
   required String sandboxDir,
   bool usingMockPlatform = false,
   PlatformCapabilities capabilities = const PlatformCapabilities.unbridged(),
@@ -481,7 +521,7 @@ AppController createSqlAppController({
     ocr: ocr,
     share: share,
     reminderGateway: reminderGateway,
-    liveView: liveView,
+    formGateway: formGateway,
     clock: clock,
     usingMockPlatform: usingMockPlatform,
     capabilities: capabilities,

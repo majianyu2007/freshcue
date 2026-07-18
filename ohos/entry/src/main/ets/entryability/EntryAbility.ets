@@ -7,6 +7,7 @@ import { CapabilitiesPlugin, CapabilityRegistry } from '../plugins/CapabilitiesP
 import { OcrPlugin } from '../plugins/OcrPlugin';
 import { SharePlugin } from '../plugins/SharePlugin';
 import { ReminderPlugin } from '../plugins/ReminderPlugin';
+import { FormPlugin } from '../plugins/FormPlugin';
 
 export default class EntryAbility extends FlutterAbility {
   private sharePlugin: SharePlugin = new SharePlugin();
@@ -19,10 +20,10 @@ export default class EntryAbility extends FlutterAbility {
     flutterEngine.getPlugins()?.add(new OcrPlugin())
     flutterEngine.getPlugins()?.add(this.sharePlugin)
     flutterEngine.getPlugins()?.add(this.reminderPlugin)
+    flutterEngine.getPlugins()?.add(new FormPlugin())
     // 冷启动：引擎就绪后用启动 Want 尝试分发（分享内容或通知深链）。
     this.dispatchWant(this.getWant(), true)
     CapabilityRegistry.mark('database', true, true, '')
-    CapabilityRegistry.mark('liveView', false, false, 'feature_disabled')
   }
 
   onNewWant(want: Want, launchParams: AbilityConstant.LaunchParam): void {

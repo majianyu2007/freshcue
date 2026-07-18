@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../app/theme.dart';
+import '../../core/errors/app_failure.dart';
 import '../../core/utils/id_gen.dart';
 import '../../domain/entities/reminder.dart';
 import '../../domain/entities/source_asset.dart';
 import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
+import '../../platform/gateways.dart';
 
 /// 确认页：原图证据 + 高亮 + 字段编辑 + 提醒预览。
 /// 用户确认前不创建任何正式提醒。
@@ -33,6 +35,7 @@ class _ReviewPageState extends State<ReviewPage> {
 
   /// 当前选中候选（用于原图高亮）。
   String? highlightedCandidateId;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -89,10 +92,12 @@ class _ReviewPageState extends State<ReviewPage> {
         title: const Text('确认时效卡片'),
         actions: [
           TextButton(
-            onPressed: () {
-              widget.controller.cancelImport();
-              Navigator.pop(context);
-            },
+            onPressed: _saving
+                ? null
+                : () {
+                    widget.controller.cancelImport();
+                    Navigator.pop(context);
+                  },
             child: const Text('放弃'),
           ),
         ],
@@ -104,6 +109,18 @@ class _ReviewPageState extends State<ReviewPage> {
             _Notice(
               icon: Icons.copy_all_outlined,
               text: '这张截图似乎已导入过，继续将创建一张新卡片。',
+              color: AppTheme.upcomingColor,
+            ),
+          if (ctx.ocrProvider != OcrProvider.none)
+            _Notice(
+              icon: Icons.document_scanner_outlined,
+              text: '识别来源：${ctx.ocrProvider.label}',
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          if (widget.controller.importFailure != null)
+            _Notice(
+              icon: Icons.edit_note_outlined,
+              text: '自动识别失败，原图已保留。请手动填写标题和关键时间。',
               color: AppTheme.upcomingColor,
             ),
           if (ctx.draft.highRisk)
@@ -210,7 +227,15 @@ class _ReviewPageState extends State<ReviewPage> {
               ),
             ),
           const SizedBox(height: 24),
-          FilledButton(onPressed: _save, child: const Text('确认并创建卡片')),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('确认并创建卡片'),
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -336,29 +361,49 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     if (titleCtl.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('请填写标题')));
       return;
     }
-    final (cardId, failures) = await widget.controller.confirmDraft(
-      title: titleCtl.text.trim(),
-      category: category,
-      location: locationCtl.text.trim().isEmpty
-          ? null
-          : locationCtl.text.trim(),
-      secretValue: secretCtl.text.trim().isEmpty ? null : secretCtl.text.trim(),
-      anchors: anchors,
-    );
-    if (!mounted) return;
-    final msg = switch (failures) {
-      -1 => '卡片已保存，但通知权限未开启，提醒未启用',
-      0 => '卡片已创建',
-      _ => '卡片已保存，$failures 条提醒创建失败（可在详情页重试）',
-    };
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    Navigator.pop(context, cardId);
+    setState(() => _saving = true);
+    try {
+      final (cardId, failures) = await widget.controller.confirmDraft(
+        title: titleCtl.text.trim(),
+        category: category,
+        location: locationCtl.text.trim().isEmpty
+            ? null
+            : locationCtl.text.trim(),
+        secretValue: secretCtl.text.trim().isEmpty
+            ? null
+            : secretCtl.text.trim(),
+        anchors: anchors,
+      );
+      if (!mounted) return;
+      final msg = switch (failures) {
+        -1 => '卡片已保存，但通知权限未开启，提醒未启用',
+        0 => '卡片已创建',
+        _ => '卡片已保存，$failures 条提醒创建失败（可在详情页重试）',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      Navigator.pop(context, cardId);
+    } on AppFailure catch (failure) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.userMessage)));
+      }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存失败，请重试')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 

@@ -11,6 +11,14 @@
     {
       "name": "EntryAbility_label",
       "value": "freshcue"
+    },
+    {
+      "name": "freshcue_form_name",
+      "value": "FreshCue 待办"
+    },
+    {
+      "name": "freshcue_form_desc",
+      "value": "显示最近的未完成时效卡片"
     }
   ]
 }

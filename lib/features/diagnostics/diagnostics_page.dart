@@ -20,13 +20,11 @@ class DiagnosticsPage extends StatelessWidget {
         children: [
           _handshakeSection(context),
           const Divider(),
-          _cap('OCR（Core Vision）', controller.ocr.isAvailable()),
+          _cap('OCR（Core Vision / 离线）', controller.ocr.isAvailable()),
           _cap(
             '代理提醒（Reminder Agent）',
             controller.reminderGateway.isAvailable(),
           ),
-          _cap('实况窗支持', controller.liveView.isSupported()),
-          _cap('实况窗权益', controller.liveView.hasEntitlement()),
           ListTile(
             title: const Text('平台模式'),
             trailing: Text(
@@ -101,7 +99,7 @@ class DiagnosticsPage extends StatelessWidget {
       'ocr': 'OCR',
       'share': '分享接收',
       'reminders': '代理提醒',
-      'liveView': '实况窗',
+      'forms': '服务卡片',
       'database': '数据库',
     };
     return Column(
@@ -123,6 +121,7 @@ class DiagnosticsPage extends StatelessWidget {
     final compiled = kit.compiled;
     final available = kit.available;
     final reason = kit.reasonLabel;
+    final detail = label == 'OCR' ? kit.provider.label : reason;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Row(
@@ -132,10 +131,10 @@ class DiagnosticsPage extends StatelessWidget {
           const SizedBox(width: 6),
           _tag('可用', available, Colors.green),
           const SizedBox(width: 8),
-          if (reason.isNotEmpty)
+          if (detail.isNotEmpty)
             Expanded(
               child: Text(
-                reason,
+                detail,
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),

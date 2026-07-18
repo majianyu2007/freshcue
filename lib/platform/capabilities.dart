@@ -1,12 +1,14 @@
 import 'package:flutter/services.dart';
 
 import '../core/logging/app_log.dart';
+import 'gateways.dart';
 
 /// 单个 Kit 的能力状态（来自原生 handshake，缺字段安全降级）。
 class KitCapability {
   const KitCapability({
     required this.compiled,
     required this.available,
+    this.provider = OcrProvider.none,
     this.reason = '',
   });
 
@@ -16,12 +18,14 @@ class KitCapability {
         compiled: false,
         available: false,
         reason: 'missing',
+        provider: OcrProvider.none,
       );
     }
     return KitCapability(
       compiled: raw['compiled'] == true,
       available: raw['available'] == true,
       reason: raw['reason'] is String ? raw['reason'] as String : '',
+      provider: OcrProvider.fromWire(raw['provider']),
     );
   }
 
@@ -29,6 +33,7 @@ class KitCapability {
   final bool compiled;
   final bool available;
   final String reason;
+  final OcrProvider provider;
 
   /// reason 机器码 → 中文（UI 用）。
   String get reasonLabel => switch (reason) {
@@ -90,7 +95,12 @@ class PlatformCapabilities {
 
   KitCapability kit(String name) =>
       kits[name] ??
-      const KitCapability(compiled: false, available: false, reason: 'missing');
+      const KitCapability(
+        compiled: false,
+        available: false,
+        reason: 'missing',
+        provider: OcrProvider.none,
+      );
 }
 
 /// 握手服务：ping + getCapabilities。桥接缺席时返回 unbridged 快照（默认安全行为）。

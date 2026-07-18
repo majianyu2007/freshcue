@@ -28,9 +28,8 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
   private channel: MethodChannel | null = null;
   private eventChannel: EventChannel | null = null;
   private sink: EventSink | null = null;
-  // 冷启动期间收到的通知点击先入队，Flutter 订阅后一次性补发（去重）。
+  // 冷启动期间收到的通知点击先入队，Flutter 订阅后一次性补发。
   private queued: Array<Record<string, string>> = [];
-  private readonly delivered = new Set<string>();
 
   getUniqueClassName(): string {
     return 'ReminderPlugin';
@@ -67,11 +66,6 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
 
   /// EntryAbility 收到 freshcue://card/<id> 深链时调用（通知点击）。
   emitOpened(cardId: string): void {
-    const key = `opened:${cardId}`;
-    if (this.delivered.has(key)) {
-      return; // 同一次点击只投递一次
-    }
-    this.delivered.add(key);
     const payload: Record<string, string> = {
       'action': 'opened',
       'cardId': cardId,
@@ -174,6 +168,7 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
     for (let i = 0; i < s.length; i++) {
       hash = (hash * 31 + s.charCodeAt(i)) | 0;
     }
-    return Math.abs(hash);
+    const positive = hash & 0x7fffffff;
+    return positive === 0 ? 1 : positive;
   }
 }
