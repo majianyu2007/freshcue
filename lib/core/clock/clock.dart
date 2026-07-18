@@ -21,7 +21,7 @@ class FixedClock implements Clock {
   @override
   DateTime now() => _now;
 
-  set now(DateTime value) => _now = value;
+  void setNow(DateTime value) => _now = value;
 
   void advance(Duration d) => _now = _now.add(d);
 }
