@@ -58,8 +58,11 @@
       }
     ],
     // 隐私：Release 不声明网络权限（本应用无任何网络代码）。
-    // 代理提醒权限在编译接入 Reminder Agent 时追加。
     "requestPermissions": [
+      {
+        // 代理提醒：安装期授予（system_grant）。
+        "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
+      }
     ]
   }
 }

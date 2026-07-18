@@ -6,9 +6,11 @@ import { GeneratedPluginRegistrant } from '../plugins/GeneratedPluginRegistrant'
 import { CapabilitiesPlugin, CapabilityRegistry } from '../plugins/CapabilitiesPlugin';
 import { OcrPlugin } from '../plugins/OcrPlugin';
 import { SharePlugin } from '../plugins/SharePlugin';
+import { ReminderPlugin } from '../plugins/ReminderPlugin';
 
 export default class EntryAbility extends FlutterAbility {
   private sharePlugin: SharePlugin = new SharePlugin();
+  private reminderPlugin: ReminderPlugin = new ReminderPlugin();
 
   configureFlutterEngine(flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
@@ -16,16 +18,29 @@ export default class EntryAbility extends FlutterAbility {
     flutterEngine.getPlugins()?.add(new CapabilitiesPlugin())
     flutterEngine.getPlugins()?.add(new OcrPlugin())
     flutterEngine.getPlugins()?.add(this.sharePlugin)
-    // 冷启动分享：引擎就绪后用启动 Want 尝试还原分享内容。
-    this.sharePlugin.handleWant(this.getWant(), true)
-    // 尚未编译接入的 Kit 如实登记。
-    CapabilityRegistry.mark('reminders', false, false, 'not_compiled')
+    flutterEngine.getPlugins()?.add(this.reminderPlugin)
+    // 冷启动：引擎就绪后用启动 Want 尝试分发（分享内容或通知深链）。
+    this.dispatchWant(this.getWant(), true)
     CapabilityRegistry.mark('liveView', false, false, 'feature_disabled')
   }
 
   onNewWant(want: Want, launchParams: AbilityConstant.LaunchParam): void {
     super.onNewWant(want, launchParams)
-    // 热启动分享：应用已在运行时收到第二张图片。
-    this.sharePlugin.handleWant(want, false)
+    this.dispatchWant(want, false)
+  }
+
+  private dispatchWant(want: Want | undefined, isColdStart: boolean): void {
+    if (want === undefined) {
+      return
+    }
+    const uri: string = want.uri ?? ''
+    // 通知点击深链：freshcue://card/<id> → 打开卡片。
+    if (uri.startsWith('freshcue://card/')) {
+      const cardId = uri.substring('freshcue://card/'.length)
+      this.reminderPlugin.emitOpened(cardId)
+      return
+    }
+    // 其余按系统分享接收处理。
+    this.sharePlugin.handleWant(want, isColdStart)
   }
 }
