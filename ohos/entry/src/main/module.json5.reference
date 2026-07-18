@@ -1,0 +1,40 @@
+// ⚠️ 参考片段：合并进 flutter create --platforms ohos 生成的 module.json5。
+// bundleName 在 AppScope/app.json5 中设为 com.freshcue.app。
+// Release 不声明任何网络权限（隐私 §19.2）。
+{
+  "module": {
+    "name": "entry",
+    "type": "entry",
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.PUBLISH_AGENT_REMINDER",
+        "reason": "$string:reminder_permission_reason",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+      }
+      // 说明：
+      // - 通知开关走 notificationManager.requestEnableNotification（无需静态权限）。
+      // - 图库选择用 PhotoViewPicker（系统 Picker，免权限）。
+      // - 分享接收经 Share Kit Want 临时授权，读取后立即复制进沙箱。
+      // - 实况窗正式权益需在 AGC 申请，测试期用测试权益（不入库）。
+    ],
+    "abilities": [
+      {
+        "name": "EntryAbility",
+        "srcEntry": "./ets/entryability/EntryAbility.ets",
+        "exported": true,
+        "skills": [
+          { "entities": ["entity.system.home"], "actions": ["action.system.home"] },
+          {
+            // 深链：freshcue://card/... 等
+            "actions": ["ohos.want.action.viewData"],
+            "uris": [{ "scheme": "freshcue" }]
+          }
+        ]
+      }
+    ],
+    "extensionAbilities": [
+      // Share Kit 接收声明按当前 SDK 模板配置（utd: general.image, 单张）。
+      // 详见 docs/native-integration.md §分享接收。
+    ]
+  }
+}

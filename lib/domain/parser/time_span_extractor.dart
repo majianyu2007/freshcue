@@ -109,10 +109,7 @@ class TimeSpanExtractor {
       ),
     ),
     // 7/25 14:00（斜杠月日必须带时刻，避免把分数/编号误判为日期）
-    (
-      SpanKind.monthDay,
-      RegExp(r'(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})'),
-    ),
+    (SpanKind.monthDay, RegExp(r'(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})')),
     // 今晚8点 / 明天下午3点 / 后天上午9:30 / 今天
     (
       SpanKind.relativeDay,
@@ -267,7 +264,16 @@ class TimeSpanExtractor {
           hasExplicitTime: hour != null,
         );
       case SpanKind.weekday:
-        const map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7};
+        const map = {
+          '一': 1,
+          '二': 2,
+          '三': 3,
+          '四': 4,
+          '五': 5,
+          '六': 6,
+          '日': 7,
+          '天': 7,
+        };
         final hour = p(m[4]);
         return TimeSpan(
           kind: kind,

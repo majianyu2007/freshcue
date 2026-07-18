@@ -155,8 +155,8 @@ class ProcessingView extends StatelessWidget {
                     i < currentIdx
                         ? Icons.check_circle
                         : (i == currentIdx
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off),
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off),
                     size: 18,
                     color: i <= currentIdx
                         ? Theme.of(context).colorScheme.primary

@@ -13,14 +13,14 @@ class OcrResultBlock {
   });
 
   factory OcrResultBlock.fromMap(Map<Object?, Object?> m) => OcrResultBlock(
-        text: m['text']! as String,
-        confidence: (m['confidence']! as num).toDouble(),
-        left: (m['left']! as num).toDouble(),
-        top: (m['top']! as num).toDouble(),
-        right: (m['right']! as num).toDouble(),
-        bottom: (m['bottom']! as num).toDouble(),
-        lineIndex: m['lineIndex']! as int,
-      );
+    text: m['text']! as String,
+    confidence: (m['confidence']! as num).toDouble(),
+    left: (m['left']! as num).toDouble(),
+    top: (m['top']! as num).toDouble(),
+    right: (m['right']! as num).toDouble(),
+    bottom: (m['bottom']! as num).toDouble(),
+    lineIndex: m['lineIndex']! as int,
+  );
 
   final String text;
   final double confidence;

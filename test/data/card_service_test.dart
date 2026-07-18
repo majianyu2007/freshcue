@@ -35,15 +35,15 @@ void main() {
   });
 
   TemporalCard card() => TemporalCard(
-        id: 'c1',
-        title: '测试活动',
-        category: CardCategory.event,
-        status: CardStatus.draft,
-        deadlineAt: DateTime(2026, 7, 20, 18, 0),
-        eventStartAt: DateTime(2026, 7, 25, 14, 0),
-        createdAt: now,
-        updatedAt: now,
-      );
+    id: 'c1',
+    title: '测试活动',
+    category: CardCategory.event,
+    status: CardStatus.draft,
+    deadlineAt: DateTime(2026, 7, 20, 18, 0),
+    eventStartAt: DateTime(2026, 7, 25, 14, 0),
+    createdAt: now,
+    updatedAt: now,
+  );
 
   test('确认卡片：状态 active + 全部提醒调度成功', () async {
     final c = card();
@@ -53,10 +53,7 @@ void main() {
     expect((await cards.findById('c1'))!.status, CardStatus.active);
     final instances = await reminders.instancesByCard('c1');
     expect(instances, isNotEmpty);
-    expect(
-      instances.every((i) => i.platformReminderId != null),
-      isTrue,
-    );
+    expect(instances.every((i) => i.platformReminderId != null), isTrue);
     expect(gateway.scheduled.length, instances.length);
   });
 
@@ -66,8 +63,9 @@ void main() {
     await service.confirmCard(c, plans);
     final oldIds = gateway.scheduled.keys.toSet();
 
-    final edited = (await cards.findById('c1'))!
-        .copyWith(eventStartAt: DateTime(2026, 7, 26, 9, 0));
+    final edited = (await cards.findById(
+      'c1',
+    ))!.copyWith(eventStartAt: DateTime(2026, 7, 26, 9, 0));
     await service.rebuildReminders(edited);
 
     expect(gateway.scheduled.keys.toSet().intersection(oldIds), isEmpty);
@@ -83,7 +81,8 @@ void main() {
   test('删除卡片：先取消平台提醒再清库', () async {
     final c = card();
     await service.confirmCard(
-      c, const ReminderPolicy().defaultPlans(c, IdGen.newId),
+      c,
+      const ReminderPolicy().defaultPlans(c, IdGen.newId),
     );
     expect(gateway.scheduled, isNotEmpty);
     await service.deleteCard('c1');
@@ -95,11 +94,14 @@ void main() {
   test('通知 complete 行为：卡片完成且提醒取消', () async {
     final c = card();
     await service.confirmCard(
-      c, const ReminderPolicy().defaultPlans(c, IdGen.newId),
+      c,
+      const ReminderPolicy().defaultPlans(c, IdGen.newId),
     );
     await service.handleAction(
       const ReminderActionEvent(
-        action: ReminderActionType.complete, cardId: 'c1', instanceId: '',
+        action: ReminderActionType.complete,
+        cardId: 'c1',
+        instanceId: '',
       ),
     );
     expect((await cards.findById('c1'))!.status, CardStatus.completed);
@@ -109,7 +111,8 @@ void main() {
   test('snooze 行为：新实例记录来源并调度', () async {
     final c = card();
     await service.confirmCard(
-      c, const ReminderPolicy().defaultPlans(c, IdGen.newId),
+      c,
+      const ReminderPolicy().defaultPlans(c, IdGen.newId),
     );
     final first = (await reminders.instancesByCard('c1')).first;
     await service.handleAction(
@@ -120,15 +123,17 @@ void main() {
       ),
     );
     final all = await reminders.instancesByCard('c1');
-    final snoozed =
-        all.where((i) => i.snoozedFromInstanceId == first.id).single;
+    final snoozed = all
+        .where((i) => i.snoozedFromInstanceId == first.id)
+        .single;
     expect(snoozed.triggerAt, now.add(const Duration(minutes: 10)));
   });
 
   test('reconciliation：过期 scheduled 实例被标记 fired', () async {
     final c = card();
     await service.confirmCard(
-      c, const ReminderPolicy().defaultPlans(c, IdGen.newId),
+      c,
+      const ReminderPolicy().defaultPlans(c, IdGen.newId),
     );
     clock.advance(const Duration(days: 3)); // 越过 7月20日截止前提醒
     await service.reconcile();
@@ -155,7 +160,8 @@ void main() {
     );
     final c = card();
     final failures = await svc.confirmCard(
-      c, const ReminderPolicy().defaultPlans(c, IdGen.newId),
+      c,
+      const ReminderPolicy().defaultPlans(c, IdGen.newId),
     );
     expect(failures, greaterThan(0));
     final all = await reminders.instancesByCard('c1');

@@ -21,7 +21,15 @@ import '../platform/gateways.dart';
 import '../platform/mock_gateways.dart';
 
 /// 导入流程阶段（处理页展示，不伪造百分比）。
-enum ImportStage { idle, reading, recognizing, analyzing, preparing, done, failed }
+enum ImportStage {
+  idle,
+  reading,
+  recognizing,
+  analyzing,
+  preparing,
+  done,
+  failed,
+}
 
 /// 待确认草稿的完整上下文。
 class DraftContext {
@@ -102,8 +110,11 @@ class AppController extends ChangeNotifier {
     final initial = await _safeInitialShare();
     if (initial != null) {
       await share.consumeInitialShare(initial.id);
-      await importFromBytes(initial.bytes,
-          source: ImportSource.share, displayName: initial.displayName,);
+      await importFromBytes(
+        initial.bytes,
+        source: ImportSource.share,
+        displayName: initial.displayName,
+      );
     }
   }
 
@@ -126,18 +137,24 @@ class AppController extends ChangeNotifier {
   Future<void> refresh() async {
     final now = clock.now();
     final active = await cards.listByStatus({CardStatus.active});
-    activeCards = active
-        .where((c) => freshness.evaluate(c, now) != Freshness.expired)
-        .toList()
-      ..sort(_byNextKeyTime);
-    expiredCards = active
-        .where((c) => freshness.evaluate(c, now) == Freshness.expired)
-        .toList()
-      ..sort((a, b) => (b.effectiveExpiry ?? b.updatedAt)
-          .compareTo(a.effectiveExpiry ?? a.updatedAt),);
-    doneCards = await cards.listByStatus(
-      {CardStatus.completed, CardStatus.archived},
-    );
+    activeCards =
+        active
+            .where((c) => freshness.evaluate(c, now) != Freshness.expired)
+            .toList()
+          ..sort(_byNextKeyTime);
+    expiredCards =
+        active
+            .where((c) => freshness.evaluate(c, now) == Freshness.expired)
+            .toList()
+          ..sort(
+            (a, b) => (b.effectiveExpiry ?? b.updatedAt).compareTo(
+              a.effectiveExpiry ?? a.updatedAt,
+            ),
+          );
+    doneCards = await cards.listByStatus({
+      CardStatus.completed,
+      CardStatus.archived,
+    });
     notifyListeners();
   }
 
@@ -152,8 +169,13 @@ class AppController extends ChangeNotifier {
   }
 
   void _onShared(SharedItem item) {
-    unawaited(importFromBytes(item.bytes,
-        source: ImportSource.share, displayName: item.displayName,),);
+    unawaited(
+      importFromBytes(
+        item.bytes,
+        source: ImportSource.share,
+        displayName: item.displayName,
+      ),
+    );
   }
 
   void _onAction(ReminderActionEvent e) {
@@ -180,7 +202,10 @@ class AppController extends ChangeNotifier {
     SourceAsset? asset;
     try {
       asset = await assetService.importBytes(
-        bytes, source: source, now: now, displayName: displayName,
+        bytes,
+        source: source,
+        now: now,
+        displayName: displayName,
       );
       // SHA-256 去重：提示而非静默丢弃。
       String? dupCard;
@@ -210,7 +235,10 @@ class AppController extends ChangeNotifier {
             OcrBlock(
               id: IdGen.newId(),
               text: b.text,
-              left: b.left, top: b.top, right: b.right, bottom: b.bottom,
+              left: b.left,
+              top: b.top,
+              right: b.right,
+              bottom: b.bottom,
               confidence: b.confidence,
               lineIndex: b.lineIndex,
             ),
@@ -236,15 +264,21 @@ class AppController extends ChangeNotifier {
   }
 
   /// 演示导入：使用 Mock OCR 样例文本（诊断页/空态入口，UI 标注演示）。
-  Future<bool> importDemo() =>
-      importFromBytes(tinyPngBytes(), source: ImportSource.demo, displayName: '演示样例.png');
+  Future<bool> importDemo() => importFromBytes(
+    tinyPngBytes(),
+    source: ImportSource.demo,
+    displayName: '演示样例.png',
+  );
 
   /// 手动文本降级：用户粘贴文字建卡。
   void importManualText(String text) {
     final now = clock.now();
     final draft = _parser.parseText(text, now);
     pendingDraft = DraftContext(
-      draft: draft, asset: null, blocks: const [], capturedAt: now,
+      draft: draft,
+      asset: null,
+      blocks: const [],
+      capturedAt: now,
     );
     importStage = ImportStage.done;
     notifyListeners();
@@ -278,7 +312,8 @@ class AppController extends ChangeNotifier {
     } catch (e) {
       if (ctx.asset != null) assetService.cleanup(ctx.asset!);
       throw AppFailure(
-        FailureCode.databaseWriteFailed, debugDetail: e.runtimeType.toString(),
+        FailureCode.databaseWriteFailed,
+        debugDetail: e.runtimeType.toString(),
       );
     }
 
@@ -299,7 +334,8 @@ class AppController extends ChangeNotifier {
       createdAt: now,
       updatedAt: now,
       overallConfidence: ctx.draft.confidenceScore,
-      isSensitive: secretValue != null || category == CardCategory.temporarySecret,
+      isSensitive:
+          secretValue != null || category == CardCategory.temporarySecret,
       notes: notes,
     );
 

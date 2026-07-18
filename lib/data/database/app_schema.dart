@@ -68,9 +68,7 @@ class AppSchema {
           imported_at INTEGER NOT NULL
         )
       ''');
-      await db.execute(
-        'CREATE INDEX idx_assets_sha ON source_assets(sha256)',
-      );
+      await db.execute('CREATE INDEX idx_assets_sha ON source_assets(sha256)');
       await db.execute('''
         CREATE TABLE ocr_blocks (
           id TEXT PRIMARY KEY,
@@ -83,9 +81,7 @@ class AppSchema {
           reading_order INTEGER NOT NULL DEFAULT 0
         )
       ''');
-      await db.execute(
-        'CREATE INDEX idx_blocks_card ON ocr_blocks(card_id)',
-      );
+      await db.execute('CREATE INDEX idx_blocks_card ON ocr_blocks(card_id)');
       await db.execute('''
         CREATE TABLE temporal_candidates (
           id TEXT PRIMARY KEY,

@@ -45,7 +45,8 @@ class ParsedDraft {
     for (final c in candidates) {
       final dt = c.normalizedDateTime;
       if (dt == null) continue;
-      if (c.role == TemporalRole.publishTime || c.role == TemporalRole.unknown) {
+      if (c.role == TemporalRole.publishTime ||
+          c.role == TemporalRole.unknown) {
         continue;
       }
       map.putIfAbsent(c.role, () => dt);
@@ -65,11 +66,11 @@ class ScreenshotParser {
     RoleClassifier? roleClassifier,
     CategoryClassifier? categoryClassifier,
     FieldExtractor? fieldExtractor,
-  })  : _spans = spanExtractor ?? TimeSpanExtractor(),
-        _normalizer = normalizer ?? const DateNormalizer(),
-        _roles = roleClassifier ?? const RoleClassifier(),
-        _categories = categoryClassifier ?? const CategoryClassifier(),
-        _fields = fieldExtractor ?? const FieldExtractor();
+  }) : _spans = spanExtractor ?? TimeSpanExtractor(),
+       _normalizer = normalizer ?? const DateNormalizer(),
+       _roles = roleClassifier ?? const RoleClassifier(),
+       _categories = categoryClassifier ?? const CategoryClassifier(),
+       _fields = fieldExtractor ?? const FieldExtractor();
 
   final TimeSpanExtractor _spans;
   final DateNormalizer _normalizer;
@@ -130,10 +131,12 @@ class ScreenshotParser {
       }
 
       final ctxBefore = fullText.substring(
-        (span.start - 14).clamp(0, fullText.length), span.start,
+        (span.start - 14).clamp(0, fullText.length),
+        span.start,
       );
       final ctxAfter = fullText.substring(
-        span.end, (span.end + 14).clamp(0, fullText.length),
+        span.end,
+        (span.end + 14).clamp(0, fullText.length),
       );
       final evidence = [
         for (final (s, e, id) in blockRanges)
@@ -154,8 +157,7 @@ class ScreenshotParser {
           contextBefore: ctxBefore,
           contextAfter: ctxAfter,
           evidenceBlockIds: evidence,
-          requiresConfirmation:
-              norm.requiresConfirmation || roleConf < 0.45,
+          requiresConfirmation: norm.requiresConfirmation || roleConf < 0.45,
           explanation: norm.explanation,
           alternativeRoles: roleScores.alternatives,
         ),
@@ -175,24 +177,28 @@ class ScreenshotParser {
     }
 
     // 截止/失效类日期若无明确时刻，调整为当日 23:59 并解释。
-    final adjusted = deduped.map((c) {
-      final dt = c.normalizedDateTime;
-      if (dt == null) return c;
-      final isEndOfDayRole =
-          c.role == TemporalRole.deadline || c.role == TemporalRole.expiry;
-      if (isEndOfDayRole && dt.hour == 0 && dt.minute == 0 && !_hasExplicitMidnight(c.rawText)) {
-        return c.copyWith(
-          normalizedDateTime: DateTime(dt.year, dt.month, dt.day, 23, 59),
-          explanation: '${c.explanation.isEmpty ? '' : '${c.explanation}；'}未写明时刻，按当日 23:59 理解',
-        );
-      }
-      return c;
-    }).toList()
-      ..sort((a, b) {
-        final ad = a.normalizedDateTime, bd = b.normalizedDateTime;
-        if (ad == null || bd == null) return 0;
-        return ad.compareTo(bd);
-      });
+    final adjusted =
+        deduped.map((c) {
+          final dt = c.normalizedDateTime;
+          if (dt == null) return c;
+          final isEndOfDayRole =
+              c.role == TemporalRole.deadline || c.role == TemporalRole.expiry;
+          if (isEndOfDayRole &&
+              dt.hour == 0 &&
+              dt.minute == 0 &&
+              !_hasExplicitMidnight(c.rawText)) {
+            return c.copyWith(
+              normalizedDateTime: DateTime(dt.year, dt.month, dt.day, 23, 59),
+              explanation:
+                  '${c.explanation.isEmpty ? '' : '${c.explanation}；'}未写明时刻，按当日 23:59 理解',
+            );
+          }
+          return c;
+        }).toList()..sort((a, b) {
+          final ad = a.normalizedDateTime, bd = b.normalizedDateTime;
+          if (ad == null || bd == null) return 0;
+          return ad.compareTo(bd);
+        });
 
     // 7. 字段提取。
     final title = _fields.extractTitle(lines);
@@ -221,14 +227,16 @@ class ScreenshotParser {
     final dateConf = adjusted.isEmpty
         ? 0.0
         : adjusted.map((c) => c.dateConfidence).reduce((a, b) => a + b) /
-            adjusted.length;
+              adjusted.length;
     final roleConf = adjusted.isEmpty
         ? 0.0
         : adjusted.map((c) => c.roleConfidence).reduce((a, b) => a + b) /
-            adjusted.length;
+              adjusted.length;
     final confidence =
-        (dateConf * 0.4 + roleConf * 0.3 + cat.confidence * 0.2 + 0.1)
-            .clamp(0.0, 1.0);
+        (dateConf * 0.4 + roleConf * 0.3 + cat.confidence * 0.2 + 0.1).clamp(
+          0.0,
+          1.0,
+        );
 
     return ParsedDraft(
       title: title,
@@ -255,7 +263,10 @@ class ScreenshotParser {
           OcrBlock(
             id: 'manual-${i++}',
             text: line.trim(),
-            left: 0, top: i / lines.length, right: 1, bottom: (i + 1) / lines.length,
+            left: 0,
+            top: i / lines.length,
+            right: 1,
+            bottom: (i + 1) / lines.length,
             confidence: 1.0,
             lineIndex: i,
           ),

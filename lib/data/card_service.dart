@@ -52,10 +52,12 @@ class CardService {
       await reminders.savePlans(card.id, plans);
     } catch (e) {
       throw AppFailure(
-        FailureCode.databaseWriteFailed, debugDetail: e.runtimeType.toString(),
+        FailureCode.databaseWriteFailed,
+        debugDetail: e.runtimeType.toString(),
       );
     }
-    final instances = precomputedInstances ??
+    final instances =
+        precomputedInstances ??
         policy.expand(confirmed, plans, now, IdGen.newId).instances;
     return _scheduleAll(confirmed, instances);
   }
@@ -80,8 +82,10 @@ class CardService {
       try {
         final available = await reminderGateway.isAvailable();
         if (!available) {
-          throw const AppFailure(FailureCode.reminderScheduleFailed,
-              debugDetail: 'gateway unavailable',);
+          throw const AppFailure(
+            FailureCode.reminderScheduleFailed,
+            debugDetail: 'gateway unavailable',
+          );
         }
         final pid = await reminderGateway.scheduleCalendarReminder(
           _payloadFor(card, inst),
@@ -109,7 +113,7 @@ class CardService {
     final body = card.isSensitive
         ? '${card.title}$semantic 内容已隐藏'
         : '${card.title}$semantic'
-            '${card.location == null ? '' : ' @${card.location}'}';
+              '${card.location == null ? '' : ' @${card.location}'}';
     return ReminderPayload(
       instanceId: inst.id,
       cardId: card.id,
@@ -133,9 +137,11 @@ class CardService {
     }
   }
 
-  Future<void> complete(String cardId) => _setStatus(cardId, CardStatus.completed);
+  Future<void> complete(String cardId) =>
+      _setStatus(cardId, CardStatus.completed);
 
-  Future<void> archive(String cardId) => _setStatus(cardId, CardStatus.archived);
+  Future<void> archive(String cardId) =>
+      _setStatus(cardId, CardStatus.archived);
 
   /// 恢复为 active（过期箱），调用方随后应引导用户重设时间。
   Future<void> restore(String cardId) => _setStatus(cardId, CardStatus.active);
@@ -192,12 +198,14 @@ class CardService {
     );
     var snoozed = policy.snooze(src, delay, now, IdGen.newId);
     try {
-      final pid = await reminderGateway
-          .scheduleCalendarReminder(_payloadFor(card, snoozed));
+      final pid = await reminderGateway.scheduleCalendarReminder(
+        _payloadFor(card, snoozed),
+      );
       snoozed = snoozed.copyWith(platformReminderId: pid);
     } on AppFailure catch (f) {
       snoozed = snoozed.copyWith(
-        status: ReminderStatus.failed, failureReason: f.code.name,
+        status: ReminderStatus.failed,
+        failureReason: f.code.name,
       );
     }
     await reminders.saveInstance(snoozed);
@@ -220,8 +228,9 @@ class CardService {
         final card = await cards.findById(inst.cardId);
         if (card == null || card.status != CardStatus.active) continue;
         try {
-          final pid = await reminderGateway
-              .scheduleCalendarReminder(_payloadFor(card, inst));
+          final pid = await reminderGateway.scheduleCalendarReminder(
+            _payloadFor(card, inst),
+          );
           await reminders.saveInstance(
             inst.copyWith(platformReminderId: pid, updatedAt: now),
           );

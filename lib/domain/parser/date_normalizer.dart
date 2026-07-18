@@ -47,7 +47,11 @@ class DateNormalizer {
       case SpanKind.timeOnly:
         // 独立时刻默认锚定当天；由聚合层尝试与邻近日期合并。
         final t = DateTime(
-          anchor.year, anchor.month, anchor.day, span.hour!, span.minute ?? 0,
+          anchor.year,
+          anchor.month,
+          anchor.day,
+          span.hour!,
+          span.minute ?? 0,
         );
         return NormalizedTime(
           dateTime: t,
@@ -63,7 +67,13 @@ class DateNormalizer {
     final (hour, minute) = _resolveClock(span, defaultHour: 0);
     DateTime? endOf(DateTime dt) => span.endHour == null
         ? null
-        : DateTime(dt.year, dt.month, dt.day, span.endHour!, span.endMinute ?? 0);
+        : DateTime(
+            dt.year,
+            dt.month,
+            dt.day,
+            span.endHour!,
+            span.endMinute ?? 0,
+          );
     if (span.year != null) {
       if (!_isValidDate(span.year!, span.month!, span.day!)) return null;
       final dt = DateTime(span.year!, span.month!, span.day!, hour, minute);
@@ -76,8 +86,14 @@ class DateNormalizer {
         explanation: dt.isBefore(anchor) ? '该时间早于导入时间，可能是历史截图' : '',
       );
     }
-    final inferred = _inferYear(span.month!, span.day!, hour, minute, anchor,
-        hasExplicitTime: span.hasExplicitTime,);
+    final inferred = _inferYear(
+      span.month!,
+      span.day!,
+      hour,
+      minute,
+      anchor,
+      hasExplicitTime: span.hasExplicitTime,
+    );
     if (inferred == null || span.endHour == null) return inferred;
     return NormalizedTime(
       dateTime: inferred.dateTime,
@@ -90,14 +106,30 @@ class DateNormalizer {
   }
 
   NormalizedTime? _normalizeDateRange(TimeSpan span, DateTime anchor) {
-    final start = _inferYear(span.month!, span.day!, 0, 0, anchor,
-        hasExplicitTime: false);
+    final start = _inferYear(
+      span.month!,
+      span.day!,
+      0,
+      0,
+      anchor,
+      hasExplicitTime: false,
+    );
     if (start == null) return null;
     var end = DateTime(
-      start.dateTime.year, span.endMonth!, span.endDay!, 23, 59,
+      start.dateTime.year,
+      span.endMonth!,
+      span.endDay!,
+      23,
+      59,
     );
     if (end.isBefore(start.dateTime)) {
-      end = DateTime(start.dateTime.year + 1, span.endMonth!, span.endDay!, 23, 59);
+      end = DateTime(
+        start.dateTime.year + 1,
+        span.endMonth!,
+        span.endDay!,
+        23,
+        59,
+      );
     }
     return NormalizedTime(
       dateTime: start.dateTime,
@@ -111,8 +143,11 @@ class DateNormalizer {
 
   NormalizedTime _normalizeRelative(TimeSpan span, DateTime anchor) {
     final (hour, minute) = _resolveClock(span);
-    final day = DateTime(anchor.year, anchor.month, anchor.day)
-        .add(Duration(days: span.relativeDays!));
+    final day = DateTime(
+      anchor.year,
+      anchor.month,
+      anchor.day,
+    ).add(Duration(days: span.relativeDays!));
     final dt = DateTime(day.year, day.month, day.day, hour, minute);
     return NormalizedTime(
       dateTime: dt,
@@ -147,10 +182,18 @@ class DateNormalizer {
 
   NormalizedTime _normalizeTimeRange(TimeSpan span, DateTime anchor) {
     final start = DateTime(
-      anchor.year, anchor.month, anchor.day, span.hour!, span.minute!,
+      anchor.year,
+      anchor.month,
+      anchor.day,
+      span.hour!,
+      span.minute!,
     );
     final end = DateTime(
-      anchor.year, anchor.month, anchor.day, span.endHour!, span.endMinute!,
+      anchor.year,
+      anchor.month,
+      anchor.day,
+      span.endHour!,
+      span.endMinute!,
     );
     return NormalizedTime(
       dateTime: start,
@@ -220,8 +263,11 @@ class DateNormalizer {
   /// 解析时刻，处理 上午/下午/晚上/中午/凌晨。
   /// [defaultHour]：无任何时刻线索时的缺省小时（日期类为 0，口语相对日为 9）。
   (int, int) _resolveClock(TimeSpan span, {int defaultHour = 9}) {
-    var hour = span.hour ??
-        (span.dayPeriod != null ? _defaultHourFor(span.dayPeriod) : defaultHour);
+    var hour =
+        span.hour ??
+        (span.dayPeriod != null
+            ? _defaultHourFor(span.dayPeriod)
+            : defaultHour);
     final minute = span.minute ?? 0;
     final period = span.dayPeriod;
     if (period != null && span.hour != null && hour < 12) {
@@ -237,13 +283,13 @@ class DateNormalizer {
   }
 
   static int _defaultHourFor(String? period) => switch (period) {
-        '上午' => 9,
-        '中午' => 12,
-        '下午' => 14,
-        '晚上' => 20,
-        '凌晨' => 1,
-        _ => 9,
-      };
+    '上午' => 9,
+    '中午' => 12,
+    '下午' => 14,
+    '晚上' => 20,
+    '凌晨' => 1,
+    _ => 9,
+  };
 
   static bool _isValidDate(int y, int m, int d) {
     final dt = DateTime(y, m, d);

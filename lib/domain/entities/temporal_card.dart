@@ -52,13 +52,13 @@ class TemporalCard {
 
   /// 按角色取锚点时间。
   DateTime? anchorFor(TemporalRole role) => switch (role) {
-        TemporalRole.eventStart => eventStartAt,
-        TemporalRole.eventEnd => eventEndAt,
-        TemporalRole.deadline => deadlineAt,
-        TemporalRole.departure => eventStartAt,
-        TemporalRole.expiry => expiresAt,
-        _ => null,
-      };
+    TemporalRole.eventStart => eventStartAt,
+    TemporalRole.eventEnd => eventEndAt,
+    TemporalRole.deadline => deadlineAt,
+    TemporalRole.departure => eventStartAt,
+    TemporalRole.expiry => expiresAt,
+    _ => null,
+  };
 
   /// 所有已设定的关键时间（升序）。
   List<(TemporalRole, DateTime)> get keyTimes {
@@ -105,35 +105,36 @@ class TemporalCard {
     double? overallConfidence,
     bool? isSensitive,
     String? notes,
-  }) =>
-      TemporalCard(
-        id: id,
-        title: title ?? this.title,
-        category: category ?? this.category,
-        status: status ?? this.status,
-        sourceAssetId: sourceAssetId ?? this.sourceAssetId,
-        rawOcrText: rawOcrText ?? this.rawOcrText,
-        summary: summary ?? this.summary,
-        location: location == _sentinel ? this.location : location as String?,
-        secretValue:
-            secretValue == _sentinel ? this.secretValue : secretValue as String?,
-        eventStartAt: eventStartAt == _sentinel
-            ? this.eventStartAt
-            : eventStartAt as DateTime?,
-        eventEndAt:
-            eventEndAt == _sentinel ? this.eventEndAt : eventEndAt as DateTime?,
-        deadlineAt:
-            deadlineAt == _sentinel ? this.deadlineAt : deadlineAt as DateTime?,
-        expiresAt:
-            expiresAt == _sentinel ? this.expiresAt : expiresAt as DateTime?,
-        capturedAt: capturedAt ?? this.capturedAt,
-        createdAt: createdAt,
-        updatedAt: updatedAt ?? this.updatedAt,
-        confirmedAt: confirmedAt ?? this.confirmedAt,
-        overallConfidence: overallConfidence ?? this.overallConfidence,
-        isSensitive: isSensitive ?? this.isSensitive,
-        notes: notes ?? this.notes,
-      );
+  }) => TemporalCard(
+    id: id,
+    title: title ?? this.title,
+    category: category ?? this.category,
+    status: status ?? this.status,
+    sourceAssetId: sourceAssetId ?? this.sourceAssetId,
+    rawOcrText: rawOcrText ?? this.rawOcrText,
+    summary: summary ?? this.summary,
+    location: location == _sentinel ? this.location : location as String?,
+    secretValue: secretValue == _sentinel
+        ? this.secretValue
+        : secretValue as String?,
+    eventStartAt: eventStartAt == _sentinel
+        ? this.eventStartAt
+        : eventStartAt as DateTime?,
+    eventEndAt: eventEndAt == _sentinel
+        ? this.eventEndAt
+        : eventEndAt as DateTime?,
+    deadlineAt: deadlineAt == _sentinel
+        ? this.deadlineAt
+        : deadlineAt as DateTime?,
+    expiresAt: expiresAt == _sentinel ? this.expiresAt : expiresAt as DateTime?,
+    capturedAt: capturedAt ?? this.capturedAt,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    confirmedAt: confirmedAt ?? this.confirmedAt,
+    overallConfidence: overallConfidence ?? this.overallConfidence,
+    isSensitive: isSensitive ?? this.isSensitive,
+    notes: notes ?? this.notes,
+  );
 
   static const _sentinel = Object();
 }

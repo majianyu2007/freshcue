@@ -25,28 +25,30 @@ class AppTheme {
   }
 
   static IconData freshnessIcon(Freshness f) => switch (f) {
-        Freshness.fresh => Icons.eco_outlined,
-        Freshness.upcoming => Icons.schedule,
-        Freshness.urgent => Icons.notification_important_outlined,
-        Freshness.expired => Icons.inventory_2_outlined,
-      };
+    Freshness.fresh => Icons.eco_outlined,
+    Freshness.upcoming => Icons.schedule,
+    Freshness.urgent => Icons.notification_important_outlined,
+    Freshness.expired => Icons.inventory_2_outlined,
+  };
 
   static IconData categoryIcon(CardCategory c) => switch (c) {
-        CardCategory.pickup => Icons.local_shipping_outlined,
-        CardCategory.event => Icons.event_outlined,
-        CardCategory.ticket => Icons.confirmation_number_outlined,
-        CardCategory.deadline => Icons.flag_outlined,
-        CardCategory.temporarySecret => Icons.password_outlined,
-        CardCategory.generic => Icons.sticky_note_2_outlined,
-      };
+    CardCategory.pickup => Icons.local_shipping_outlined,
+    CardCategory.event => Icons.event_outlined,
+    CardCategory.ticket => Icons.confirmation_number_outlined,
+    CardCategory.deadline => Icons.flag_outlined,
+    CardCategory.temporarySecret => Icons.password_outlined,
+    CardCategory.generic => Icons.sticky_note_2_outlined,
+  };
 
   static ThemeData light() => _base(Brightness.light);
 
   static ThemeData dark() => _base(Brightness.dark);
 
   static ThemeData _base(Brightness brightness) {
-    final scheme =
-        ColorScheme.fromSeed(seedColor: seed, brightness: brightness);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: seed,
+      brightness: brightness,
+    );
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,
@@ -63,15 +65,18 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         ),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
-      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }

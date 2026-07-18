@@ -17,20 +17,19 @@ void main() {
     DateTime? expiry,
     CardCategory category = CardCategory.event,
     bool sensitive = false,
-  }) =>
-      TemporalCard(
-        id: 'c1',
-        title: '测试卡片',
-        category: category,
-        status: CardStatus.active,
-        deadlineAt: deadline,
-        eventStartAt: start,
-        eventEndAt: end,
-        expiresAt: expiry,
-        isSensitive: sensitive,
-        createdAt: now,
-        updatedAt: now,
-      );
+  }) => TemporalCard(
+    id: 'c1',
+    title: '测试卡片',
+    category: category,
+    status: CardStatus.active,
+    deadlineAt: deadline,
+    eventStartAt: start,
+    eventEndAt: end,
+    expiresAt: expiry,
+    isSensitive: sensitive,
+    createdAt: now,
+    updatedAt: now,
+  );
 
   group('FreshnessPolicy 状态边界', () {
     const policy = FreshnessPolicy();
@@ -95,8 +94,18 @@ void main() {
     test('同一触发时间去重', () {
       final c = card(start: now.add(const Duration(days: 2)));
       final plans = [
-        ReminderPlan(id: nid(), cardId: 'c1', anchorRole: TemporalRole.eventStart, offsetMinutes: 60),
-        ReminderPlan(id: nid(), cardId: 'c1', anchorRole: TemporalRole.eventStart, offsetMinutes: 60),
+        ReminderPlan(
+          id: nid(),
+          cardId: 'c1',
+          anchorRole: TemporalRole.eventStart,
+          offsetMinutes: 60,
+        ),
+        ReminderPlan(
+          id: nid(),
+          cardId: 'c1',
+          anchorRole: TemporalRole.eventStart,
+          offsetMinutes: 60,
+        ),
       ];
       expect(policy.expand(c, plans, now, nid).instances.length, 1);
     });
@@ -105,7 +114,12 @@ void main() {
       // 开始时间 23:30，提前 1 天触发 → 23:30 处于安静时段。
       final c = card(start: DateTime(2026, 7, 25, 23, 30));
       final plans = [
-        ReminderPlan(id: nid(), cardId: 'c1', anchorRole: TemporalRole.eventStart, offsetMinutes: 1440),
+        ReminderPlan(
+          id: nid(),
+          cardId: 'c1',
+          anchorRole: TemporalRole.eventStart,
+          offsetMinutes: 1440,
+        ),
       ];
       final r = policy.expand(c, plans, now, nid);
       expect(r.instances.single.triggerAt.hour, 7);
@@ -115,7 +129,12 @@ void main() {
     test('紧急提醒（提前<12h）不受安静时段影响', () {
       final c = card(start: DateTime(2026, 7, 19, 0, 30));
       final plans = [
-        ReminderPlan(id: nid(), cardId: 'c1', anchorRole: TemporalRole.eventStart, offsetMinutes: 30),
+        ReminderPlan(
+          id: nid(),
+          cardId: 'c1',
+          anchorRole: TemporalRole.eventStart,
+          offsetMinutes: 30,
+        ),
       ];
       final r = policy.expand(c, plans, now, nid);
       expect(r.instances.single.triggerAt, DateTime(2026, 7, 19, 0, 0));
@@ -134,9 +153,13 @@ void main() {
 
     test('snooze 创建新实例并记录来源', () {
       final src = ReminderInstance(
-        id: 'i1', cardId: 'c1', planId: 'p1',
-        triggerAt: now, status: ReminderStatus.fired,
-        createdAt: now, updatedAt: now,
+        id: 'i1',
+        cardId: 'c1',
+        planId: 'p1',
+        triggerAt: now,
+        status: ReminderStatus.fired,
+        createdAt: now,
+        updatedAt: now,
       );
       final s = policy.snooze(src, const Duration(minutes: 10), now, nid);
       expect(s.snoozedFromInstanceId, 'i1');
@@ -145,7 +168,10 @@ void main() {
 
     test('plan 描述可读', () {
       final p = ReminderPlan(
-        id: 'p', cardId: 'c', anchorRole: TemporalRole.deadline, offsetMinutes: 1440,
+        id: 'p',
+        cardId: 'c',
+        anchorRole: TemporalRole.deadline,
+        offsetMinutes: 1440,
       );
       expect(p.describe(), '截止前 1 天');
     });

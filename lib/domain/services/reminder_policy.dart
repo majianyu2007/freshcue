@@ -4,10 +4,7 @@ import '../enums/enums.dart';
 
 /// 提醒策略：默认模板、实例展开、去重、跳过过去、安静时段调整。
 class ReminderPolicy {
-  const ReminderPolicy({
-    this.quietStartHour = 23,
-    this.quietEndHour = 7,
-  });
+  const ReminderPolicy({this.quietStartHour = 23, this.quietEndHour = 7});
 
   final int quietStartHour;
   final int quietEndHour;
@@ -111,17 +108,16 @@ class ReminderPolicy {
     Duration delay,
     DateTime now,
     String Function() newId,
-  ) =>
-      ReminderInstance(
-        id: newId(),
-        cardId: source.cardId,
-        planId: source.planId,
-        triggerAt: now.add(delay),
-        status: ReminderStatus.scheduled,
-        snoozedFromInstanceId: source.id,
-        createdAt: now,
-        updatedAt: now,
-      );
+  ) => ReminderInstance(
+    id: newId(),
+    cardId: source.cardId,
+    planId: source.planId,
+    triggerAt: now.add(delay),
+    status: ReminderStatus.scheduled,
+    snoozedFromInstanceId: source.id,
+    createdAt: now,
+    updatedAt: now,
+  );
 
   bool _inQuietHours(DateTime t) =>
       t.hour >= quietStartHour || t.hour < quietEndHour;

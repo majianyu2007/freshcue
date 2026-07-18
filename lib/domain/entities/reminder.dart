@@ -69,17 +69,16 @@ class ReminderInstance {
     ReminderStatus? status,
     String? failureReason,
     DateTime? updatedAt,
-  }) =>
-      ReminderInstance(
-        id: id,
-        cardId: cardId,
-        planId: planId,
-        triggerAt: triggerAt,
-        platformReminderId: platformReminderId ?? this.platformReminderId,
-        status: status ?? this.status,
-        failureReason: failureReason ?? this.failureReason,
-        snoozedFromInstanceId: snoozedFromInstanceId,
-        createdAt: createdAt,
-        updatedAt: updatedAt ?? this.updatedAt,
-      );
+  }) => ReminderInstance(
+    id: id,
+    cardId: cardId,
+    planId: planId,
+    triggerAt: triggerAt,
+    platformReminderId: platformReminderId ?? this.platformReminderId,
+    status: status ?? this.status,
+    failureReason: failureReason ?? this.failureReason,
+    snoozedFromInstanceId: snoozedFromInstanceId,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
 }

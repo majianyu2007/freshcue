@@ -73,9 +73,9 @@ class MemoryReminderRepository implements ReminderRepository {
 
   @override
   Future<List<ReminderInstance>> allScheduledInstances() async => [
-        for (final list in _instances.values)
-          ...list.where((i) => i.status == ReminderStatus.scheduled),
-      ];
+    for (final list in _instances.values)
+      ...list.where((i) => i.status == ReminderStatus.scheduled),
+  ];
 
   @override
   Future<void> savePlans(String cardId, List<ReminderPlan> plans) async =>
@@ -96,8 +96,7 @@ class MemoryReminderRepository implements ReminderRepository {
   Future<void> replaceInstances(
     String cardId,
     List<ReminderInstance> instances,
-  ) async =>
-      _instances[cardId] = List.of(instances);
+  ) async => _instances[cardId] = List.of(instances);
 
   @override
   Future<void> deleteByCard(String cardId) async {

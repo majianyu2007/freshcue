@@ -31,29 +31,30 @@ void main() {
   tearDown(() => db.close());
 
   TemporalCard card(String id) => TemporalCard(
-        id: id,
-        title: '校园创新体验日',
-        category: CardCategory.event,
-        status: CardStatus.active,
-        location: '大学生活动中心 201',
-        secretValue: 'A7281',
-        deadlineAt: DateTime(2026, 7, 20, 18, 0),
-        eventStartAt: DateTime(2026, 7, 25, 14, 0),
-        eventEndAt: DateTime(2026, 7, 25, 16, 30),
-        isSensitive: true,
-        createdAt: now,
-        updatedAt: now,
-      );
+    id: id,
+    title: '校园创新体验日',
+    category: CardCategory.event,
+    status: CardStatus.active,
+    location: '大学生活动中心 201',
+    secretValue: 'A7281',
+    deadlineAt: DateTime(2026, 7, 20, 18, 0),
+    eventStartAt: DateTime(2026, 7, 25, 14, 0),
+    eventEndAt: DateTime(2026, 7, 25, 16, 30),
+    isSensitive: true,
+    createdAt: now,
+    updatedAt: now,
+  );
 
   test('新建数据库：schema 版本正确、全部表存在', () async {
-    final tables = await db.query(
-      'sqlite_master',
-      where: "type = 'table'",
-    );
+    final tables = await db.query('sqlite_master', where: "type = 'table'");
     final names = tables.map((t) => t['name']).toSet();
     for (final t in [
-      'temporal_cards', 'source_assets', 'ocr_blocks',
-      'temporal_candidates', 'reminder_plans', 'reminder_instances',
+      'temporal_cards',
+      'source_assets',
+      'ocr_blocks',
+      'temporal_candidates',
+      'reminder_plans',
+      'reminder_instances',
       'app_settings',
     ]) {
       expect(names, contains(t), reason: '缺表 $t');
@@ -75,9 +76,7 @@ void main() {
   test('按状态查询', () async {
     final repo = SqlCardRepository(db);
     await repo.save(card('c1'));
-    await repo.save(
-      card('c2').copyWith(status: CardStatus.archived),
-    );
+    await repo.save(card('c2').copyWith(status: CardStatus.archived));
     final active = await repo.listByStatus({CardStatus.active});
     expect(active.map((c) => c.id), ['c1']);
   });
@@ -86,8 +85,12 @@ void main() {
     final repo = SqlAssetRepository(db);
     await repo.save(
       SourceAsset(
-        id: 'a1', sandboxPath: '/x/a1.png', mimeType: 'image/png',
-        sha256: 'abc', importSource: ImportSource.share, importedAt: now,
+        id: 'a1',
+        sandboxPath: '/x/a1.png',
+        mimeType: 'image/png',
+        sha256: 'abc',
+        importSource: ImportSource.share,
+        importedAt: now,
       ),
     );
     expect((await repo.findBySha256('abc'))!.id, 'a1');
@@ -98,8 +101,10 @@ void main() {
     final repo = SqlReminderRepository(db);
     await repo.savePlans('c1', [
       const ReminderPlan(
-        id: 'p1', cardId: 'c1',
-        anchorRole: TemporalRole.deadline, offsetMinutes: 120,
+        id: 'p1',
+        cardId: 'c1',
+        anchorRole: TemporalRole.deadline,
+        offsetMinutes: 120,
       ),
     ]);
     final plans = await repo.plansByCard('c1');
@@ -107,11 +112,14 @@ void main() {
 
     await repo.replaceInstances('c1', [
       ReminderInstance(
-        id: 'i1', cardId: 'c1', planId: 'p1',
+        id: 'i1',
+        cardId: 'c1',
+        planId: 'p1',
         triggerAt: DateTime(2026, 7, 20, 16, 0),
         platformReminderId: 42,
         status: ReminderStatus.scheduled,
-        createdAt: now, updatedAt: now,
+        createdAt: now,
+        updatedAt: now,
       ),
     ]);
     final scheduled = await repo.allScheduledInstances();
@@ -122,9 +130,14 @@ void main() {
     final repo = SqlOcrBlockRepository(db);
     await repo.saveAll('c1', [
       const OcrBlock(
-        id: 'b1', text: '报名截止：7月20日 18:00',
-        left: 0.1, top: 0.2, right: 0.9, bottom: 0.25,
-        confidence: 0.96, lineIndex: 1,
+        id: 'b1',
+        text: '报名截止：7月20日 18:00',
+        left: 0.1,
+        top: 0.2,
+        right: 0.9,
+        bottom: 0.25,
+        confidence: 0.96,
+        lineIndex: 1,
       ),
     ]);
     expect((await repo.listByCard('c1')).single.text, contains('报名截止'));
@@ -155,14 +168,12 @@ void main() {
   });
 
   test('文件数据库跨连接持久化（模拟应用重启）', () async {
-    final path =
-        '${Directory.systemTemp.createTempSync('freshcue').path}/t.db';
+    final path = '${Directory.systemTemp.createTempSync('freshcue').path}/t.db';
     final db1 = await openAppDatabase(factory, path);
     await SqlCardRepository(db1).save(card('c9'));
     await db1.close();
     final db2 = await openAppDatabase(factory, path);
-    expect((await SqlCardRepository(db2).findById('c9'))!.title,
-        '校园创新体验日',);
+    expect((await SqlCardRepository(db2).findById('c9'))!.title, '校园创新体验日');
     await db2.close();
   });
 }

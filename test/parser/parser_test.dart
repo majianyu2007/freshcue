@@ -199,11 +199,13 @@ void main() {
     });
     test('发布时间被识别且不进入锚点：发布于7月1日，7月8日开会', () {
       final d = p('发布于7月1日，7月8日开会');
-      final publish = d.candidates
-          .firstWhere((c) => c.role == TemporalRole.publishTime);
+      final publish = d.candidates.firstWhere(
+        (c) => c.role == TemporalRole.publishTime,
+      );
       expect(publish.rawText, contains('7月1日'));
-      final meeting = d.candidates
-          .firstWhere((c) => c.role == TemporalRole.eventStart);
+      final meeting = d.candidates.firstWhere(
+        (c) => c.role == TemporalRole.eventStart,
+      );
       expect(meeting.normalizedDateTime!.day, 8);
       expect(d.suggestedAnchors.containsKey(TemporalRole.publishTime), isFalse);
       expect(d.suggestedAnchors[TemporalRole.eventStart]!.day, 8);
@@ -215,8 +217,10 @@ void main() {
     test('截止到7月20日18时 → deadline', () {
       final d = p('截止到7月20日18时');
       expect(d.candidates.single.role, TemporalRole.deadline);
-      expect(d.candidates.single.normalizedDateTime,
-          DateTime(2026, 7, 20, 18, 0),);
+      expect(
+        d.candidates.single.normalizedDateTime,
+        DateTime(2026, 7, 20, 18, 0),
+      );
     });
     test('发车 → departure', () {
       final d = p('G102次 7月20日 08:15发车');
@@ -233,8 +237,10 @@ void main() {
     });
     test('deadline 无时刻 → 归一化为 23:59', () {
       final d = p('提交截止：7月22日');
-      expect(d.candidates.single.normalizedDateTime,
-          DateTime(2026, 7, 22, 23, 59),);
+      expect(
+        d.candidates.single.normalizedDateTime,
+        DateTime(2026, 7, 22, 23, 59),
+      );
     });
   });
 
@@ -326,12 +332,18 @@ void main() {
         anchor,
       );
       expect(d.title, '校园创新体验日');
-      expect(d.suggestedAnchors[TemporalRole.deadline],
-          DateTime(2026, 7, 20, 18, 0),);
-      expect(d.suggestedAnchors[TemporalRole.eventStart],
-          DateTime(2026, 7, 25, 14, 0),);
-      expect(d.suggestedAnchors[TemporalRole.eventEnd],
-          DateTime(2026, 7, 25, 16, 30),);
+      expect(
+        d.suggestedAnchors[TemporalRole.deadline],
+        DateTime(2026, 7, 20, 18, 0),
+      );
+      expect(
+        d.suggestedAnchors[TemporalRole.eventStart],
+        DateTime(2026, 7, 25, 14, 0),
+      );
+      expect(
+        d.suggestedAnchors[TemporalRole.eventEnd],
+        DateTime(2026, 7, 25, 16, 30),
+      );
       expect(d.location, contains('201'));
       expect(d.secretValue, 'A7281');
       expect(d.category, CardCategory.event);

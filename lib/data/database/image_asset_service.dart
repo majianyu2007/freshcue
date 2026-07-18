@@ -15,7 +15,10 @@ import '../../domain/enums/enums.dart';
 /// 图片资产服务：验证、安全复制到沙箱、哈希、缩略图。
 /// 文件写入成功后才允许写数据库；数据库失败时调用 [cleanup] 清理孤立文件。
 class ImageAssetService {
-  ImageAssetService({required this.sandboxDir, this.maxBytes = 25 * 1024 * 1024});
+  ImageAssetService({
+    required this.sandboxDir,
+    this.maxBytes = 25 * 1024 * 1024,
+  });
 
   /// 应用沙箱内图片目录（如 files/assets）。
   final String sandboxDir;
@@ -45,7 +48,9 @@ class ImageAssetService {
 
     // 不可预测文件名（隐私 §19.3）。
     final id = IdGen.newId();
-    final ext = mime == 'image/png' ? 'png' : (mime == 'image/webp' ? 'webp' : 'jpg');
+    final ext = mime == 'image/png'
+        ? 'png'
+        : (mime == 'image/webp' ? 'webp' : 'jpg');
     final dir = Directory(sandboxDir);
     if (!dir.existsSync()) dir.createSync(recursive: true);
     final path = p.join(sandboxDir, '$id.$ext');
@@ -64,7 +69,10 @@ class ImageAssetService {
     } catch (e) {
       _deleteQuietly(path);
       _deleteQuietly(thumbPath);
-      throw AppFailure(FailureCode.imageReadFailed, debugDetail: e.runtimeType.toString());
+      throw AppFailure(
+        FailureCode.imageReadFailed,
+        debugDetail: e.runtimeType.toString(),
+      );
     }
 
     return SourceAsset(
@@ -124,12 +132,16 @@ class ImageAssetService {
       targetHeight: scale < 1 ? (height * scale).round() : height,
     );
     final thumbFrame = await codec.getNextFrame();
-    final data =
-        await thumbFrame.image.toByteData(format: ui.ImageByteFormat.png);
+    final data = await thumbFrame.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
     thumbFrame.image.dispose();
     codec.dispose();
     if (data == null) {
-      throw const AppFailure(FailureCode.imageReadFailed, debugDetail: 'thumb encode null');
+      throw const AppFailure(
+        FailureCode.imageReadFailed,
+        debugDetail: 'thumb encode null',
+      );
     }
     await File(thumbPath).writeAsBytes(data.buffer.asUint8List(), flush: true);
     return (width, height);

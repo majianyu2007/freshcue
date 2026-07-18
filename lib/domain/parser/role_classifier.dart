@@ -10,40 +10,78 @@ class RoleClassifier {
 
   static const _keywords = <TemporalRole, Map<String, double>>{
     TemporalRole.deadline: {
-      '报名截止': 3.0, '提交截止': 3.0, '缴费截止': 3.0, '申报截止': 3.0,
-      '截止': 2.5, '截至': 2.5, '最后期限': 2.5, '逾期': 1.5, '之前提交': 2.0,
-      '报名': 1.2, '提交': 1.2, '申报': 1.2,
+      '报名截止': 3.0,
+      '提交截止': 3.0,
+      '缴费截止': 3.0,
+      '申报截止': 3.0,
+      '截止': 2.5,
+      '截至': 2.5,
+      '最后期限': 2.5,
+      '逾期': 1.5,
+      '之前提交': 2.0,
+      '报名': 1.2,
+      '提交': 1.2,
+      '申报': 1.2,
     },
     TemporalRole.eventStart: {
-      '活动时间': 3.0, '会议时间': 3.0, '考试时间': 3.0, '开考': 2.5,
-      '开始': 2.0, '开场': 2.0, '举行': 2.0, '召开': 2.0, '开会': 2.5,
-      '讲座': 1.5, '面试': 2.0, '预约': 1.5, '上课': 1.5, '活动': 1.2, '会议': 1.2,
+      '活动时间': 3.0,
+      '会议时间': 3.0,
+      '考试时间': 3.0,
+      '开考': 2.5,
+      '开始': 2.0,
+      '开场': 2.0,
+      '举行': 2.0,
+      '召开': 2.0,
+      '开会': 2.5,
+      '讲座': 1.5,
+      '面试': 2.0,
+      '预约': 1.5,
+      '上课': 1.5,
+      '活动': 1.2,
+      '会议': 1.2,
     },
-    TemporalRole.eventEnd: {
-      '结束': 2.5, '闭馆': 2.5, '散场': 2.5, '截止入场': 2.0,
-    },
+    TemporalRole.eventEnd: {'结束': 2.5, '闭馆': 2.5, '散场': 2.5, '截止入场': 2.0},
     TemporalRole.departure: {
-      '发车': 3.0, '起飞': 3.0, '出发': 2.5, '检票': 2.5, '登机': 2.5,
-      '开车时间': 3.0, '航班': 1.5, '车次': 1.5,
+      '发车': 3.0,
+      '起飞': 3.0,
+      '出发': 2.5,
+      '检票': 2.5,
+      '登机': 2.5,
+      '开车时间': 3.0,
+      '航班': 1.5,
+      '车次': 1.5,
     },
     TemporalRole.expiry: {
-      '有效期至': 3.5, '有效期': 3.0, '失效': 3.0, '过期': 3.0,
-      '兑换截止': 3.0, '领取截止': 3.0, '到期': 2.5, '有效': 1.0,
+      '有效期至': 3.5,
+      '有效期': 3.0,
+      '失效': 3.0,
+      '过期': 3.0,
+      '兑换截止': 3.0,
+      '领取截止': 3.0,
+      '到期': 2.5,
+      '有效': 1.0,
     },
     TemporalRole.publishTime: {
-      '发布于': 3.5, '发布时间': 3.5, '发布': 2.5, '通知时间': 2.5,
-      '更新时间': 3.0, '更新于': 3.0, '发表': 2.0, '发出': 1.5,
+      '发布于': 3.5,
+      '发布时间': 3.5,
+      '发布': 2.5,
+      '通知时间': 2.5,
+      '更新时间': 3.0,
+      '更新于': 3.0,
+      '发表': 2.0,
+      '发出': 1.5,
     },
   };
 
   /// 对 [fullText] 中 [spanStart..spanEnd] 的时间候选评分。
   /// 返回全部角色得分（降序）；调用方保留 top 与 alternatives。
   RoleScores classify(String fullText, int spanStart, int spanEnd) {
-    final beforeStart =
-        (spanStart - windowSize).clamp(0, fullText.length);
+    final beforeStart = (spanStart - windowSize).clamp(0, fullText.length);
     final before = fullText.substring(beforeStart, spanStart);
-    final after =
-        fullText.substring(spanEnd, (spanEnd + windowSize).clamp(0, fullText.length));
+    final after = fullText.substring(
+      spanEnd,
+      (spanEnd + windowSize).clamp(0, fullText.length),
+    );
 
     final scores = <TemporalRole, double>{};
     _keywords.forEach((role, words) {

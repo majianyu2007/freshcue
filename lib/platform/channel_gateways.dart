@@ -50,10 +50,11 @@ class ChannelOcrGateway implements OcrGateway {
     try {
       final raw = await _channel
           .invokeMethod<Map<Object?, Object?>>('recognizeImage', {
-        'uri': sandboxPath,
-        'languageHints': languageHints,
-        'detectOrientation': detectOrientation,
-      }).timeout(const Duration(seconds: 20));
+            'uri': sandboxPath,
+            'languageHints': languageHints,
+            'detectOrientation': detectOrientation,
+          })
+          .timeout(const Duration(seconds: 20));
       if (raw == null) throw const AppFailure(FailureCode.ocrFailed);
       final blocks = (raw['blocks']! as List<Object?>)
           .map((b) => OcrResultBlock.fromMap(b! as Map<Object?, Object?>))
@@ -72,7 +73,10 @@ class ChannelOcrGateway implements OcrGateway {
     } on PlatformException catch (e) {
       throw _mapPlatformError(e);
     } on MissingPluginException {
-      throw const AppFailure(FailureCode.ocrUnavailable, debugDetail: 'no plugin');
+      throw const AppFailure(
+        FailureCode.ocrUnavailable,
+        debugDetail: 'no plugin',
+      );
     }
   }
 }
@@ -84,8 +88,9 @@ class ChannelShareGateway implements ShareGateway {
   @override
   Future<SharedItem?> getInitialShare() async {
     try {
-      final raw = await _channel
-          .invokeMethod<Map<Object?, Object?>>('getInitialShare');
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'getInitialShare',
+      );
       return raw == null ? null : _fromMap(raw);
     } on PlatformException catch (e) {
       throw _mapPlatformError(e);
@@ -104,15 +109,16 @@ class ChannelShareGateway implements ShareGateway {
   }
 
   @override
-  Stream<SharedItem> get sharedItems => _events
-      .receiveBroadcastStream()
-      .map((raw) => _fromMap(raw as Map<Object?, Object?>));
+  Stream<SharedItem> get sharedItems => _events.receiveBroadcastStream().map(
+    (raw) => _fromMap(raw as Map<Object?, Object?>),
+  );
 
   @override
   Future<SharedItem?> pickImage() async {
     try {
-      final raw =
-          await _channel.invokeMethod<Map<Object?, Object?>>('pickImage');
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'pickImage',
+      );
       return raw == null ? null : _fromMap(raw);
     } on PlatformException catch (e) {
       if (e.code == 'cancelled') return null;
@@ -123,11 +129,11 @@ class ChannelShareGateway implements ShareGateway {
   }
 
   SharedItem _fromMap(Map<Object?, Object?> m) => SharedItem(
-        id: m['id']! as String,
-        bytes: m['bytes']! as Uint8List,
-        displayName: m['displayName'] as String?,
-        extraCount: m['extraCount'] as int? ?? 0,
-      );
+    id: m['id']! as String,
+    bytes: m['bytes']! as Uint8List,
+    displayName: m['displayName'] as String?,
+    extraCount: m['extraCount'] as int? ?? 0,
+  );
 }
 
 class ChannelReminderGateway implements ReminderGateway {
@@ -178,7 +184,8 @@ class ChannelReminderGateway implements ReminderGateway {
       throw _mapPlatformError(e);
     } on MissingPluginException {
       throw const AppFailure(
-        FailureCode.reminderScheduleFailed, debugDetail: 'no plugin',
+        FailureCode.reminderScheduleFailed,
+        debugDetail: 'no plugin',
       );
     }
   }
@@ -197,8 +204,9 @@ class ChannelReminderGateway implements ReminderGateway {
   @override
   Future<List<int>> getScheduledReminderIds() async {
     try {
-      final list =
-          await _channel.invokeMethod<List<Object?>>('getScheduledReminderIds');
+      final list = await _channel.invokeMethod<List<Object?>>(
+        'getScheduledReminderIds',
+      );
       return list?.cast<int>() ?? const [];
     } on PlatformException {
       return const [];
@@ -278,7 +286,10 @@ class ChannelLiveViewGateway implements LiveViewGateway {
     } on PlatformException catch (e) {
       throw _mapPlatformError(e);
     } on MissingPluginException {
-      throw const AppFailure(FailureCode.liveViewNotEntitled, debugDetail: 'no plugin');
+      throw const AppFailure(
+        FailureCode.liveViewNotEntitled,
+        debugDetail: 'no plugin',
+      );
     }
   }
 

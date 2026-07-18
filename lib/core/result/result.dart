@@ -13,11 +13,10 @@ sealed class Result<T> {
   R when<R>({
     required R Function(T value) ok,
     required R Function(AppFailure failure) err,
-  }) =>
-      switch (this) {
-        Ok<T>(:final data) => ok(data),
-        Err<T>(:final error) => err(error),
-      };
+  }) => switch (this) {
+    Ok<T>(:final data) => ok(data),
+    Err<T>(:final error) => err(error),
+  };
 }
 
 class Ok<T> extends Result<T> {

@@ -10,8 +10,10 @@ enum CardCategory {
   const CardCategory(this.label);
   final String label;
 
-  static CardCategory fromName(String name) => CardCategory.values
-      .firstWhere((c) => c.name == name, orElse: () => CardCategory.generic);
+  static CardCategory fromName(String name) => CardCategory.values.firstWhere(
+    (c) => c.name == name,
+    orElse: () => CardCategory.generic,
+  );
 }
 
 /// 持久化状态（数据库中的事实状态）。
@@ -24,8 +26,10 @@ enum CardStatus {
   const CardStatus(this.label);
   final String label;
 
-  static CardStatus fromName(String name) => CardStatus.values
-      .firstWhere((s) => s.name == name, orElse: () => CardStatus.draft);
+  static CardStatus fromName(String name) => CardStatus.values.firstWhere(
+    (s) => s.name == name,
+    orElse: () => CardStatus.draft,
+  );
 }
 
 /// 界面派生状态，由 FreshnessPolicy 根据当前时间计算，不落库。
@@ -52,8 +56,10 @@ enum TemporalRole {
   const TemporalRole(this.label);
   final String label;
 
-  static TemporalRole fromName(String name) => TemporalRole.values
-      .firstWhere((r) => r.name == name, orElse: () => TemporalRole.unknown);
+  static TemporalRole fromName(String name) => TemporalRole.values.firstWhere(
+    (r) => r.name == name,
+    orElse: () => TemporalRole.unknown,
+  );
 }
 
 /// 图片导入来源。

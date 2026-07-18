@@ -20,7 +20,8 @@ class AppLog {
   }
 
   static void e(String tag, String message, [Object? error]) {
-    final m = '[$tag] ${Redactor.redact(message)}'
+    final m =
+        '[$tag] ${Redactor.redact(message)}'
         '${error == null ? '' : ' (${error.runtimeType})'}';
     if (kDebugMode) debugPrint('ERROR $m');
     _remember('E $m');

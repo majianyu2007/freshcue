@@ -30,7 +30,10 @@ abstract interface class ReminderRepository {
   Future<List<ReminderInstance>> allScheduledInstances();
   Future<void> savePlans(String cardId, List<ReminderPlan> plans);
   Future<void> saveInstance(ReminderInstance instance);
-  Future<void> replaceInstances(String cardId, List<ReminderInstance> instances);
+  Future<void> replaceInstances(
+    String cardId,
+    List<ReminderInstance> instances,
+  );
   Future<void> deleteByCard(String cardId);
 }
 

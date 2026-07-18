@@ -47,8 +47,7 @@ void main() {
     return card;
   }
 
-  Widget app() =>
-      FreshCueApp(controller: controller, showOnboarding: false);
+  Widget app() => FreshCueApp(controller: controller, showOnboarding: false);
 
   testWidgets('首页空状态展示操作提示', (tester) async {
     await controller.refresh();
@@ -133,9 +132,7 @@ void main() {
     await seedCard();
     await tester.pumpWidget(
       MediaQuery(
-        data: const MediaQueryData(
-          textScaler: TextScaler.linear(1.6),
-        ),
+        data: const MediaQueryData(textScaler: TextScaler.linear(1.6)),
         child: app(),
       ),
     );
@@ -179,7 +176,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect((await controller.cards.findById(card.id))!.status,
-        CardStatus.completed,);
+    expect(
+      (await controller.cards.findById(card.id))!.status,
+      CardStatus.completed,
+    );
   });
 }

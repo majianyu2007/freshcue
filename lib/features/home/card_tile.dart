@@ -24,8 +24,10 @@ class CardTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = controller.clock.now();
     final freshness = controller.freshness.evaluate(card, now);
-    final color =
-        AppTheme.freshnessColor(freshness, Theme.of(context).brightness);
+    final color = AppTheme.freshnessColor(
+      freshness,
+      Theme.of(context).brightness,
+    );
     final subtitle = controller.freshness.describeNext(card, now);
 
     return Card(
@@ -36,8 +38,11 @@ class CardTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              Icon(AppTheme.categoryIcon(card.category),
-                  size: 28, color: Theme.of(context).colorScheme.primary,),
+              Icon(
+                AppTheme.categoryIcon(card.category),
+                size: 28,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -52,8 +57,11 @@ class CardTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(AppTheme.freshnessIcon(freshness),
-                            size: 15, color: color,),
+                        Icon(
+                          AppTheme.freshnessIcon(freshness),
+                          size: 15,
+                          color: color,
+                        ),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
@@ -104,13 +112,13 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(label, style: TextStyle(color: color, fontSize: 11)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(label, style: TextStyle(color: color, fontSize: 11)),
+  );
 }
 
 class _Thumb extends StatelessWidget {
@@ -120,7 +128,9 @@ class _Thumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (card.sourceAssetId == null) return const SizedBox(width: 36, height: 36);
+    if (card.sourceAssetId == null) {
+      return const SizedBox(width: 36, height: 36);
+    }
     return FutureBuilder(
       future: controller.assets.findById(card.sourceAssetId!),
       builder: (context, snap) {
@@ -132,7 +142,10 @@ class _Thumb extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: Image.file(
             File(path),
-            width: 36, height: 36, fit: BoxFit.cover, cacheWidth: 72,
+            width: 36,
+            height: 36,
+            fit: BoxFit.cover,
+            cacheWidth: 72,
           ),
         );
       },
@@ -146,20 +159,20 @@ class MockBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.amber.shade700,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.science_outlined, size: 14, color: Colors.black87),
-              SizedBox(width: 6),
-              Text(
-                '模拟能力模式：OCR/提醒为 Mock，未连接鸿蒙系统能力',
-                style: TextStyle(fontSize: 12, color: Colors.black87),
-              ),
-            ],
+    color: Colors.amber.shade700,
+    child: const Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.science_outlined, size: 14, color: Colors.black87),
+          SizedBox(width: 6),
+          Text(
+            '模拟能力模式：OCR/提醒为 Mock，未连接鸿蒙系统能力',
+            style: TextStyle(fontSize: 12, color: Colors.black87),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }

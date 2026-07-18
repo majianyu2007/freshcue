@@ -33,7 +33,9 @@ class _CardDetailPageState extends State<CardDetailPage> {
       future: widget.controller.cards.findById(widget.cardId),
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         final card = snap.data;
         if (card == null) {
@@ -51,7 +53,10 @@ class _CardDetailPageState extends State<CardDetailPage> {
   Widget _build(BuildContext context, TemporalCard card) {
     final now = widget.controller.clock.now();
     final freshness = widget.controller.freshness.evaluate(card, now);
-    final color = AppTheme.freshnessColor(freshness, Theme.of(context).brightness);
+    final color = AppTheme.freshnessColor(
+      freshness,
+      Theme.of(context).brightness,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -76,7 +81,10 @@ class _CardDetailPageState extends State<CardDetailPage> {
               Text(card.category.label),
               const SizedBox(width: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -91,10 +99,9 @@ class _CardDetailPageState extends State<CardDetailPage> {
           const SizedBox(height: 12),
           Text(
             widget.controller.freshness.describeNext(card, now),
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(color: color),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: color),
           ),
           const SizedBox(height: 16),
           _sourceImage(card),
@@ -197,51 +204,50 @@ class _CardDetailPageState extends State<CardDetailPage> {
   }
 
   Widget _reminderTimeline(TemporalCard card, DateTime now) => FutureBuilder(
-        future: widget.controller.reminders.instancesByCard(card.id),
-        builder: (context, snap) {
-          final instances = snap.data ?? const [];
-          if (instances.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('未启用提醒'),
-            );
-          }
-          return Column(
-            children: [
-              for (final i in instances)
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    switch (i.status) {
-                      ReminderStatus.scheduled => Icons.notifications_active_outlined,
-                      ReminderStatus.fired => Icons.notifications_none,
-                      ReminderStatus.snoozed => Icons.snooze,
-                      ReminderStatus.cancelled => Icons.notifications_off_outlined,
-                      ReminderStatus.failed => Icons.error_outline,
-                    },
-                    color: i.status == ReminderStatus.failed
-                        ? AppTheme.urgentColor
-                        : null,
-                  ),
-                  title: Text(formatDateTime(i.triggerAt)),
-                  subtitle: i.status == ReminderStatus.failed
-                      ? Text('创建失败：${i.failureReason ?? '未知'}')
-                      : null,
-                  trailing: Text(
-                    switch (i.status) {
-                      ReminderStatus.scheduled => '已调度',
-                      ReminderStatus.fired => '已触发',
-                      ReminderStatus.snoozed => '已延后',
-                      ReminderStatus.cancelled => '已取消',
-                      ReminderStatus.failed => '失败',
-                    },
-                  ),
-                ),
-            ],
-          );
-        },
+    future: widget.controller.reminders.instancesByCard(card.id),
+    builder: (context, snap) {
+      final instances = snap.data ?? const [];
+      if (instances.isEmpty) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text('未启用提醒'),
+        );
+      }
+      return Column(
+        children: [
+          for (final i in instances)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                switch (i.status) {
+                  ReminderStatus.scheduled =>
+                    Icons.notifications_active_outlined,
+                  ReminderStatus.fired => Icons.notifications_none,
+                  ReminderStatus.snoozed => Icons.snooze,
+                  ReminderStatus.cancelled => Icons.notifications_off_outlined,
+                  ReminderStatus.failed => Icons.error_outline,
+                },
+                color: i.status == ReminderStatus.failed
+                    ? AppTheme.urgentColor
+                    : null,
+              ),
+              title: Text(formatDateTime(i.triggerAt)),
+              subtitle: i.status == ReminderStatus.failed
+                  ? Text('创建失败：${i.failureReason ?? '未知'}')
+                  : null,
+              trailing: Text(switch (i.status) {
+                ReminderStatus.scheduled => '已调度',
+                ReminderStatus.fired => '已触发',
+                ReminderStatus.snoozed => '已延后',
+                ReminderStatus.cancelled => '已取消',
+                ReminderStatus.failed => '失败',
+              }),
+            ),
+        ],
       );
+    },
+  );
 
   Widget _liveViewButton(TemporalCard card, DateTime now) {
     // 只在 pickup/ticket/短时 event 且有未来关键时间时提供入口。
@@ -273,14 +279,15 @@ class _CardDetailPageState extends State<CardDetailPage> {
             scene: card.category.name,
           );
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('实况胶囊已开启（实验能力）')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('实况胶囊已开启（实验能力）')));
           }
         } on AppFailure catch (f) {
           if (mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(f.userMessage)));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(f.userMessage)));
           }
         }
       },
@@ -300,11 +307,17 @@ class _CardDetailPageState extends State<CardDetailPage> {
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(
-      context: context, initialTime: TimeOfDay.fromDateTime(base),
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
     );
     if (time == null) return;
-    final newAt =
-        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final newAt = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
     final updated = switch (role) {
       TemporalRole.deadline => card.copyWith(deadlineAt: newAt),
       TemporalRole.eventStart => card.copyWith(eventStartAt: newAt),

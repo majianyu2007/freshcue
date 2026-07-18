@@ -24,10 +24,7 @@ class PlatformRegistry {
   final bool usingMocks;
 
   /// [forceMock] 仅供测试注入。
-  static Future<PlatformRegistry> create(
-    Clock clock, {
-    bool? forceMock,
-  }) async {
+  static Future<PlatformRegistry> create(Clock clock, {bool? forceMock}) async {
     final channelOcr = ChannelOcrGateway();
     final bridged = await channelOcr.isAvailable();
     final useMock = forceMock ?? (!bridged && kDebugMode);

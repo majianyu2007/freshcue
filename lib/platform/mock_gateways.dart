@@ -24,7 +24,8 @@ class MockOcrGateway implements OcrGateway {
     bool detectOrientation = true,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    final text = sampleText ??
+    final text =
+        sampleText ??
         '校园创新体验日\n报名截止：7月20日 18:00\n活动时间：7月25日 14:00—16:30\n'
             '地点：大学生活动中心 201\n入场码：A7281';
     final lines = text.split('\n');
@@ -52,8 +53,7 @@ class MockOcrGateway implements OcrGateway {
 }
 
 class MockShareGateway implements ShareGateway {
-  final StreamController<SharedItem> _controller =
-      StreamController.broadcast();
+  final StreamController<SharedItem> _controller = StreamController.broadcast();
   SharedItem? _initial;
   final Set<String> _consumed = {};
 
@@ -107,8 +107,7 @@ class MockReminderGateway implements ReminderGateway {
       scheduled.remove(platformId);
 
   @override
-  Future<List<int>> getScheduledReminderIds() async =>
-      scheduled.keys.toList();
+  Future<List<int>> getScheduledReminderIds() async => scheduled.keys.toList();
 
   @override
   Stream<ReminderActionEvent> get actions => _actions.stream;
@@ -135,8 +134,7 @@ class MockLiveViewGateway implements LiveViewGateway {
     required String title,
     required DateTime targetAt,
     required String scene,
-  }) async =>
-      active[cardId] = targetAt;
+  }) async => active[cardId] = targetAt;
 
   @override
   Future<void> stop(String cardId) async => active.remove(cardId);
@@ -144,10 +142,71 @@ class MockLiveViewGateway implements LiveViewGateway {
 
 /// 生成 1x1 PNG 字节（测试与 Mock 分享用，不含个人信息）。
 Uint8List tinyPngBytes() => Uint8List.fromList(const [
-      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-      0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x62, 0x00, 0x01, 0x00, 0x00,
-      0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-      0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
-    ]);
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x62,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
+]);

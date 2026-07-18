@@ -64,8 +64,8 @@ class _ReviewPageState extends State<ReviewPage> {
       eventEndAt: anchors[TemporalRole.eventEnd],
       deadlineAt: anchors[TemporalRole.deadline],
       expiresAt: anchors[TemporalRole.expiry],
-      isSensitive: secretCtl.text.isNotEmpty ||
-          category == CardCategory.temporarySecret,
+      isSensitive:
+          secretCtl.text.isNotEmpty || category == CardCategory.temporarySecret,
       createdAt: now,
       updatedAt: now,
     );
@@ -77,8 +77,12 @@ class _ReviewPageState extends State<ReviewPage> {
   @override
   Widget build(BuildContext context) {
     final now = widget.controller.clock.now();
-    final expansion = widget.controller.reminderPolicy
-        .expand(_previewCard, _plans, now, IdGen.newId);
+    final expansion = widget.controller.reminderPolicy.expand(
+      _previewCard,
+      _plans,
+      now,
+      IdGen.newId,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -123,7 +127,8 @@ class _ReviewPageState extends State<ReviewPage> {
           TextField(
             controller: titleCtl,
             decoration: const InputDecoration(
-              labelText: '标题', border: OutlineInputBorder(),
+              labelText: '标题',
+              border: OutlineInputBorder(),
             ),
             onChanged: (_) => setState(() {}),
           ),
@@ -153,7 +158,8 @@ class _ReviewPageState extends State<ReviewPage> {
           TextField(
             controller: locationCtl,
             decoration: const InputDecoration(
-              labelText: '地点', border: OutlineInputBorder(),
+              labelText: '地点',
+              border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 12),
@@ -198,17 +204,13 @@ class _ReviewPageState extends State<ReviewPage> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 '· $note',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppTheme.upcomingColor),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.upcomingColor),
               ),
             ),
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _save,
-            child: const Text('确认并创建卡片'),
-          ),
+          FilledButton(onPressed: _save, child: const Text('确认并创建卡片')),
           const SizedBox(height: 32),
         ],
       ),
@@ -226,14 +228,14 @@ class _ReviewPageState extends State<ReviewPage> {
     final widgets = <Widget>[];
     // 按角色显示解析候选，可点击定位原图证据。
     for (final cand in ctx.draft.candidates) {
-      final active = anchors[cand.role] == cand.normalizedDateTime ||
+      final active =
+          anchors[cand.role] == cand.normalizedDateTime ||
           (cand.role == TemporalRole.publishTime);
       widgets.add(
         Card(
           margin: const EdgeInsets.symmetric(vertical: 4),
           child: ListTile(
-            onTap: () =>
-                setState(() => highlightedCandidateId = cand.id),
+            onTap: () => setState(() => highlightedCandidateId = cand.id),
             leading: Icon(
               cand.role == TemporalRole.publishTime
                   ? Icons.article_outlined
@@ -253,7 +255,10 @@ class _ReviewPageState extends State<ReviewPage> {
                 if (cand.explanation.isNotEmpty)
                   Text(
                     cand.explanation,
-                    style: TextStyle(color: AppTheme.upcomingColor, fontSize: 12),
+                    style: TextStyle(
+                      color: AppTheme.upcomingColor,
+                      fontSize: 12,
+                    ),
                   ),
                 if (cand.requiresConfirmation)
                   const Text(
@@ -273,8 +278,10 @@ class _ReviewPageState extends State<ReviewPage> {
                 : IconButton(
                     icon: Icon(active ? Icons.check_box : Icons.edit_outlined),
                     tooltip: '修改时间',
-                    onPressed: () => _pickDateTime(cand.role,
-                        initial: cand.normalizedDateTime,),
+                    onPressed: () => _pickDateTime(
+                      cand.role,
+                      initial: cand.normalizedDateTime,
+                    ),
                   ),
           ),
         ),
@@ -318,21 +325,29 @@ class _ReviewPageState extends State<ReviewPage> {
     );
     if (time == null) return;
     setState(() {
-      anchors[role] =
-          DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      anchors[role] = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
   Future<void> _save() async {
     if (titleCtl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('请填写标题')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请填写标题')));
       return;
     }
     final (cardId, failures) = await widget.controller.confirmDraft(
       title: titleCtl.text.trim(),
       category: category,
-      location: locationCtl.text.trim().isEmpty ? null : locationCtl.text.trim(),
+      location: locationCtl.text.trim().isEmpty
+          ? null
+          : locationCtl.text.trim(),
       secretValue: secretCtl.text.trim().isEmpty ? null : secretCtl.text.trim(),
       anchors: anchors,
     );
@@ -419,20 +434,22 @@ class _Notice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text, style: TextStyle(color: color)),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 8),
-            Expanded(child: Text(text, style: TextStyle(color: color))),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }
 
 class _AddAnchorButton extends StatelessWidget {
@@ -461,10 +478,7 @@ class _AddAnchorButton extends StatelessWidget {
           padding: EdgeInsets.all(8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.add, size: 18),
-              Text('添加时间'),
-            ],
+            children: [Icon(Icons.add, size: 18), Text('添加时间')],
           ),
         ),
       ),

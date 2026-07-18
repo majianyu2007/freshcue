@@ -23,18 +23,18 @@ class FreshCueApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: '截期 FreshCue',
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        locale: const Locale('zh', 'CN'),
-        supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        home: AppShell(controller: controller, showOnboarding: showOnboarding),
-      );
+    title: '截期 FreshCue',
+    theme: AppTheme.light(),
+    darkTheme: AppTheme.dark(),
+    locale: const Locale('zh', 'CN'),
+    supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
+    localizationsDelegates: const [
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    home: AppShell(controller: controller, showOnboarding: showOnboarding),
+  );
 }
 
 class AppShell extends StatefulWidget {
@@ -102,24 +102,29 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _openCard(String id) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) =>
-            CardDetailPage(controller: widget.controller, cardId: id),
-      ),
-    ).then((_) => widget.controller.refresh());
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (context) =>
+                CardDetailPage(controller: widget.controller, cardId: id),
+          ),
+        )
+        .then((_) => widget.controller.refresh());
   }
 
   @override
   Widget build(BuildContext context) {
     if (!onboardingDone) {
-      return OnboardingPage(onDone: () => setState(() => onboardingDone = true));
+      return OnboardingPage(
+        onDone: () => setState(() => onboardingDone = true),
+      );
     }
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
         final stage = widget.controller.importStage;
-        final busy = stage == ImportStage.reading ||
+        final busy =
+            stage == ImportStage.reading ||
             stage == ImportStage.recognizing ||
             stage == ImportStage.analyzing ||
             stage == ImportStage.preparing;
@@ -198,48 +203,53 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: PageView.builder(
-                  controller: _pager,
-                  itemCount: _pages.length,
-                  onPageChanged: (i) => setState(() => page = i),
-                  itemBuilder: (context, i) {
-                    final (icon, title, body) = _pages[i];
-                    return Padding(
-                      padding: const EdgeInsets.all(40),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(icon, size: 72,
-                              color: Theme.of(context).colorScheme.primary,),
-                          const SizedBox(height: 32),
-                          Text(title,
-                              style: Theme.of(context).textTheme.headlineSmall,),
-                          const SizedBox(height: 16),
-                          Text(body, textAlign: TextAlign.center),
-                        ],
+    body: SafeArea(
+      child: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _pager,
+              itemCount: _pages.length,
+              onPageChanged: (i) => setState(() => page = i),
+              itemBuilder: (context, i) {
+                final (icon, title, body) = _pages[i];
+                return Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 72,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: FilledButton(
-                  onPressed: page < _pages.length - 1
-                      ? () => _pager.nextPage(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOut,
-                          )
-                      : widget.onDone,
-                  child: Text(page < _pages.length - 1 ? '下一步' : '开始使用'),
-                ),
-              ),
-            ],
+                      const SizedBox(height: 32),
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(body, textAlign: TextAlign.center),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      );
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: FilledButton(
+              onPressed: page < _pages.length - 1
+                  ? () => _pager.nextPage(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOut,
+                    )
+                  : widget.onDone,
+              child: Text(page < _pages.length - 1 ? '下一步' : '开始使用'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

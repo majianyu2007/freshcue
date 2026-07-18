@@ -10,7 +10,9 @@ class FieldExtractor {
   static final _codeLabel = RegExp(
     r'(?:取件码|取餐码|兑换码|门禁码|入场码|核销码|验证码|提货码|邀请码)\s*[:：]?\s*([A-Za-z0-9\-]{3,12})',
   );
-  static final _timeish = RegExp(r'\d{1,2}[点时:：]|\d{1,2}\s*月|周[一二三四五六日天]|截止|时间');
+  static final _timeish = RegExp(
+    r'\d{1,2}[点时:：]|\d{1,2}\s*月|周[一二三四五六日天]|截止|时间',
+  );
   static const _badTitles = {'通知', '公告', '提示', '温馨提示', '重要通知'};
 
   /// 标题：优先第一条语义完整、非纯标签的行。
@@ -22,8 +24,12 @@ class FieldExtractor {
       if (_timeish.hasMatch(line) && line.length < 8) continue;
       if (line.length < 2) continue;
       // 去掉行内标签前缀
-      final cleaned = line.replaceFirst(RegExp(r'^【?(通知|公告)】?[:：]?'), '').trim();
-      if (cleaned.length >= 2) return cleaned.length > 30 ? cleaned.substring(0, 30) : cleaned;
+      final cleaned = line
+          .replaceFirst(RegExp(r'^【?(通知|公告)】?[:：]?'), '')
+          .trim();
+      if (cleaned.length >= 2) {
+        return cleaned.length > 30 ? cleaned.substring(0, 30) : cleaned;
+      }
     }
     return '未命名卡片';
   }
