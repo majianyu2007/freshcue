@@ -185,7 +185,7 @@ class SqlOcrBlockRepository implements OcrBlockRepository {
           top: (r['top']! as num).toDouble(),
           right: (r['right']! as num).toDouble(),
           bottom: (r['bottom']! as num).toDouble(),
-          confidence: (r['confidence']! as num).toDouble(),
+          confidence: (r['confidence'] as num?)?.toDouble(),
           lineIndex: r['line_index']! as int,
           readingOrder: r['reading_order'] as int? ?? 0,
         ),

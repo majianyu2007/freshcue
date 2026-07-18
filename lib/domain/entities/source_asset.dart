@@ -38,7 +38,7 @@ class OcrBlock {
     required this.top,
     required this.right,
     required this.bottom,
-    required this.confidence,
+    this.confidence,
     required this.lineIndex,
     this.cardId,
     this.readingOrder = 0,
@@ -48,7 +48,9 @@ class OcrBlock {
   final String? cardId;
   final String text;
   final double left, top, right, bottom;
-  final double confidence;
+
+  /// OCR 引擎逐行置信度；引擎不提供（如 Core Vision）时为 null。
+  final double? confidence;
   final int lineIndex;
   final int readingOrder;
 }

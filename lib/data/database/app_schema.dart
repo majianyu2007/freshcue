@@ -4,7 +4,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppSchema {
   AppSchema._();
 
-  static const int version = 1;
+  static const int version = 2;
 
   static Future<void> onCreate(Database db, int version) async {
     for (var v = 1; v <= version; v++) {
@@ -136,6 +136,31 @@ class AppSchema {
           value TEXT NOT NULL
         )
       ''');
+    },
+    // v2：ocr_blocks.confidence 改为可空 —— Core Vision 等引擎不提供逐行置信度，
+    // 存 null 比伪造数值更诚实。SQLite 无法直接改列约束，故重建表。
+    2: (db) async {
+      await db.execute('''
+        CREATE TABLE ocr_blocks_v2 (
+          id TEXT PRIMARY KEY,
+          card_id TEXT NOT NULL,
+          text TEXT NOT NULL,
+          left REAL NOT NULL, top REAL NOT NULL,
+          right REAL NOT NULL, bottom REAL NOT NULL,
+          confidence REAL,
+          line_index INTEGER NOT NULL,
+          reading_order INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO ocr_blocks_v2
+        SELECT id, card_id, text, left, top, right, bottom,
+               confidence, line_index, reading_order
+        FROM ocr_blocks
+      ''');
+      await db.execute('DROP TABLE ocr_blocks');
+      await db.execute('ALTER TABLE ocr_blocks_v2 RENAME TO ocr_blocks');
+      await db.execute('CREATE INDEX idx_blocks_card ON ocr_blocks(card_id)');
     },
   };
 }

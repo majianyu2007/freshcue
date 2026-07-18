@@ -4,7 +4,7 @@ import 'dart:typed_data';
 class OcrResultBlock {
   const OcrResultBlock({
     required this.text,
-    required this.confidence,
+    this.confidence,
     required this.left,
     required this.top,
     required this.right,
@@ -14,7 +14,8 @@ class OcrResultBlock {
 
   factory OcrResultBlock.fromMap(Map<Object?, Object?> m) => OcrResultBlock(
     text: m['text']! as String,
-    confidence: (m['confidence']! as num).toDouble(),
+    // Core Vision 不提供逐行置信度 → null，不得伪造。
+    confidence: m['confidence'] == null ? null : (m['confidence']! as num).toDouble(),
     left: (m['left']! as num).toDouble(),
     top: (m['top']! as num).toDouble(),
     right: (m['right']! as num).toDouble(),
@@ -23,7 +24,10 @@ class OcrResultBlock {
   );
 
   final String text;
-  final double confidence;
+
+  /// OCR 引擎逐行置信度；引擎不提供时为 null。
+  /// 与解析器的启发式 UI 分数（roleConfidence/dateConfidence）是不同概念。
+  final double? confidence;
   final double left, top, right, bottom;
   final int lineIndex;
 }

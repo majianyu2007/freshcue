@@ -145,6 +145,64 @@ void main() {
     expect(await repo.listByCard('c1'), isEmpty);
   });
 
+  test('OCR block 置信度为 null（Core Vision 不提供逐行置信度）', () async {
+    final repo = SqlOcrBlockRepository(db);
+    await repo.saveAll('c1', [
+      const OcrBlock(
+        id: 'b-null',
+        text: '活动时间 7月25日 14:00',
+        left: 0.1,
+        top: 0.3,
+        right: 0.9,
+        bottom: 0.35,
+        // confidence 省略 → null
+        lineIndex: 2,
+      ),
+    ]);
+    final loaded = (await repo.listByCard('c1')).single;
+    expect(loaded.confidence, isNull);
+  });
+
+  test('迁移冒烟：v1 → v2（ocr_blocks.confidence 变为可空且保留旧数据）', () async {
+    // 用 v1 建库并写入一条带 NOT NULL confidence 的记录。
+    final path = '${Directory.systemTemp.createTempSync('fc_mig').path}/m.db';
+    final v1 = await factory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, v) => AppSchema.onCreate(db, 1),
+      ),
+    );
+    await v1.insert('ocr_blocks', {
+      'id': 'old',
+      'card_id': 'c1',
+      'text': '旧数据',
+      'left': 0.0, 'top': 0.0, 'right': 1.0, 'bottom': 0.1,
+      'confidence': 0.9,
+      'line_index': 0,
+    });
+    await v1.close();
+
+    // 用当前 schema 重新打开 → 触发 onUpgrade 到 v2。
+    final v2 = await openAppDatabase(factory, path);
+    expect(await v2.getVersion(), 2);
+    // 旧数据保留。
+    final rows = await v2.query('ocr_blocks', where: 'id = ?', whereArgs: ['old']);
+    expect(rows.single['confidence'], 0.9);
+    // 新表允许 null 写入。
+    await v2.insert('ocr_blocks', {
+      'id': 'new',
+      'card_id': 'c1',
+      'text': '新数据',
+      'left': 0.0, 'top': 0.0, 'right': 1.0, 'bottom': 0.1,
+      'confidence': null,
+      'line_index': 1,
+    });
+    final n = await v2.query('ocr_blocks', where: 'id = ?', whereArgs: ['new']);
+    expect(n.single['confidence'], isNull);
+    await v2.close();
+  });
+
   test('设置读写', () async {
     final repo = SqlSettingsRepository(db);
     expect(await repo.get('quiet_start'), isNull);
