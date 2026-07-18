@@ -1,17 +1,27 @@
 # 已知限制
 
+> 更新（OHOS bring-up 阶段）：HAP 现已可构建（3.35.8-ohos-1.0.1 / HarmonyOS SDK
+> API 24），OCR/分享/代理提醒三条链已**真实编译**进 HAP，数据库已切 sqflite_ohos。
+> 剩余限制主要是**无真机导致的运行期未验证**。详见 docs/hap-bringup-report.md。
+
 | # | 限制 | 原因 | 影响 | 下一步 |
 |---|---|---|---|---|
-| 1 | HAP 未构建 | 本机无 OHOS Flutter SDK 分支 | 无法出包 | 按 native-integration.md §1-2 在配好环境的机器执行 |
-| 2 | 全部 ArkTS 桥接未真机验证 | 无真机/模拟器 | OCR/分享/提醒/实况窗为参考实现 | 真机按 device-test-checklist.md 逐项验证 |
-| 3 | 当前 main.dart 使用内存仓库 | sqflite-ohos 需真机工程 | 桌面演示重启丢数据；SQL 层已完成并通过 ffi 测试 | 真机接线见 native-integration.md §3 |
-| 4 | 实况窗 feature flag 禁用 | 需要 AGC 测试/正式权益 | 设置页开关为禁用态 | 取得权益后启用并真机验证 |
-| 5 | Form Kit 服务卡片未实现（P1） | Flutter 容器集成风险 + 无环境 | 无桌面卡片 | 接口预留（快照写入方案见 architecture.md），独立 flag |
-| 6 | MindSpore 语义模型未训练（P2） | P0 优先；规则基线已可用 | 无模型推理 | ml/ 提供可复现训练脚手架 |
+| 1 | ~~HAP 未构建~~ **已解决** | — | Debug HAP 可构建（95M，未签名） | Release 需 DevEco 签名账号 |
+| 2 | ArkTS 桥接未真机验证 | 无真机/模拟器（hdc 无目标） | OCR/分享/提醒已编译但未设备运行 | 真机按 device-test-checklist.md 逐项验证 |
+| 3 | ~~main.dart 用内存仓库~~ **已解决** | — | OHOS 走 sqflite_ohos，桌面走内存 | 真机验证持久化 |
+| 4 | 实况窗 feature flag 禁用 + 编译隔离 | 需 AGC 权益 | 实现留在 ohos-reference/，不阻塞 HAP | 取得权益后接入并验证 |
+| 5 | Form Kit 服务卡片未实现（P1） | 本阶段禁止；HAP 优先 | 无桌面卡片 | HAP 三链验证后评估 |
+| 6 | MindSpore 语义模型未训练（P2） | P0 优先；规则基线已可用 | 无模型推理 | ml/ 提供脚手架 |
 | 7 | 多图分享只取第一张 | 第一版范围 | UI 有提示未导入张数 | P2 批量导入 |
-| 8 | 跨设备协同通知未实现（P1 研究项） | 无多设备环境 | 无 | 待真机后调研 notification-distributed API |
-| 9 | OCR 逐行置信度取保守常量 0.9 | Core Vision line 级置信度以真机 SDK 为准 | 置信度显示偏保守 | 真机确认 API 字段后替换 |
-| 10 | 图片方向（EXIF）规范化依赖引擎解码 | instantiateImageCodec 自动处理常见方向；特殊 EXIF 未验证 | 极端旋转截图坐标可能偏移 | 真机用旋转样张验证 |
+| 8 | 跨设备协同通知未实现（P1 研究项） | 无多设备环境 | 无 | 待真机后调研 |
+| 9 | 代理提醒无自定义通知按钮 | 本机 SDK ActionButtonType 仅 CLOSE/SNOOZE | “完成/延后”经点击通知进卡片在应用内完成 | 如需按钮，评估 Notification Kit 长驻方案（受进程存活限制） |
+| 10 | OCR 无逐行置信度 | Core Vision recognizeText 结果不含 confidence | 置信度显示为空；解析用独立启发式分数 | 无（API 使然，如实呈现 null） |
+| 11 | 图片方向（EXIF）依赖引擎解码 | 未真机验证特殊 EXIF | 极端旋转截图坐标可能偏移 | 真机用旋转样张验证 |
+| 12 | getScheduledReminderIds 返回空 | 本机 getValidReminders 不暴露 reminderId | reconciliation 依赖 DB 存储的平台 ID（publishReminder 返回值），已足够 | — |
 
-`module.json5.reference` 中 Share Kit extensionAbilities 字段留空：不同 SDK
+旧参考实现（基于不同 API 版本/文档）保存在 `ohos-reference/`，与本机 SDK 的差异
+（ActionButtonType.CUSTOM 不存在、OCR itemRect vs cornerPoints、confidence 缺失等）
+已在拉通阶段修正到 `ohos/entry/src/main/ets/plugins/` 的真实实现中。
+
+（历史）`module.json5.reference` 中 Share Kit extensionAbilities 字段留空：不同 SDK
 版本模板差异较大，接入时以 DevEco 模板 + 官方文档为准，不凭记忆硬写。

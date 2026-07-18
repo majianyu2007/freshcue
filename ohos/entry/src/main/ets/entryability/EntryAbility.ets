@@ -21,6 +21,7 @@ export default class EntryAbility extends FlutterAbility {
     flutterEngine.getPlugins()?.add(this.reminderPlugin)
     // 冷启动：引擎就绪后用启动 Want 尝试分发（分享内容或通知深链）。
     this.dispatchWant(this.getWant(), true)
+    CapabilityRegistry.mark('database', true, true, '')
     CapabilityRegistry.mark('liveView', false, false, 'feature_disabled')
   }
 

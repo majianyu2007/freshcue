@@ -34,6 +34,7 @@ Future<void> main() async {
       liveView: registry.liveView,
       sandboxDir: p.join(caps.filesDir!, 'assets'),
       usingMockPlatform: registry.usingMocks,
+      capabilities: caps,
     );
   } else {
     // 非 OHOS（桌面开发/测试）：内存仓库。Release 不应走到这里——
@@ -49,6 +50,7 @@ Future<void> main() async {
       liveView: registry.liveView,
       sandboxDir: p.join(Directory.systemTemp.path, 'freshcue_sandbox'),
       usingMockPlatform: registry.usingMocks,
+      capabilities: caps,
     );
   }
   await controller.start();

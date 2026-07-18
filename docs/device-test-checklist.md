@@ -23,3 +23,15 @@
 | 16 | 敏感卡片锁屏通知隐藏内容 | ⬜ 未验证 | | | | |
 | 17 | 重复分享同一张图的去重提示 | ⬜ 未验证 | | | | |
 | 18 | 删除卡片后系统提醒消失 | ⬜ 未验证 | | | | |
+
+## 无设备时的最短接入步骤（供有设备者执行）
+
+当前无设备，以上全部未验证。取得 HarmonyOS 真机后：
+
+1. 手机开启开发者模式：设置 → 关于本机 → 连点“版本号”→ 返回 → 系统 → 开发者选项 → 打开“USB 调试”。
+2. 连接后确认：`~/Library/OpenHarmony/Sdk/*/toolchains/hdc list targets`（应列出设备）。
+3. 签名：DevEco 打开 `ohos/` → File → Project Structure → Signing Configs → 勾选
+   Automatically generate signature（需登录华为账号；私钥不入库）。
+4. 安装启动：`.toolchains/flutter-ohos/bin/flutter run`（或 `hdc install <签名后.hap>` 后手动启动）。
+5. 逐项执行上表，填写设备型号/系统版本/日期/结果/证据。
+6. 诊断页“原生能力握手”应显示 platform=ohos、各 Kit compiled✓；OCR/分享/提醒 available✓。

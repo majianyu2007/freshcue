@@ -19,6 +19,7 @@ import '../domain/parser/screenshot_parser.dart';
 import '../domain/repositories/repositories.dart';
 import '../domain/services/freshness_policy.dart';
 import '../domain/services/reminder_policy.dart';
+import '../platform/capabilities.dart';
 import '../platform/gateways.dart';
 import '../platform/mock_gateways.dart';
 
@@ -68,6 +69,7 @@ class AppController extends ChangeNotifier {
     required this.liveView,
     required this.clock,
     required this.usingMockPlatform,
+    this.capabilities = const PlatformCapabilities.unbridged(),
   }) {
     _parser = ScreenshotParser();
   }
@@ -85,6 +87,9 @@ class AppController extends ChangeNotifier {
   final LiveViewGateway liveView;
   final Clock clock;
   final bool usingMockPlatform;
+
+  /// 原生能力握手快照（诊断页展示真实 compiled/available/reason）。
+  final PlatformCapabilities capabilities;
 
   late final ScreenshotParser _parser;
   final FreshnessPolicy freshness = const FreshnessPolicy();
@@ -407,6 +412,7 @@ AppController createMemoryAppController({
   required LiveViewGateway liveView,
   required String sandboxDir,
   bool usingMockPlatform = true,
+  PlatformCapabilities capabilities = const PlatformCapabilities.unbridged(),
 }) {
   final cards = MemoryCardRepository();
   final assets = MemoryAssetRepository();
@@ -435,6 +441,7 @@ AppController createMemoryAppController({
     liveView: liveView,
     clock: clock,
     usingMockPlatform: usingMockPlatform,
+    capabilities: capabilities,
   );
 }
 
@@ -448,6 +455,7 @@ AppController createSqlAppController({
   required LiveViewGateway liveView,
   required String sandboxDir,
   bool usingMockPlatform = false,
+  PlatformCapabilities capabilities = const PlatformCapabilities.unbridged(),
 }) {
   final cards = SqlCardRepository(db);
   final assets = SqlAssetRepository(db);
@@ -476,5 +484,6 @@ AppController createSqlAppController({
     liveView: liveView,
     clock: clock,
     usingMockPlatform: usingMockPlatform,
+    capabilities: capabilities,
   );
 }

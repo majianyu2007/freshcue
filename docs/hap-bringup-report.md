@@ -47,14 +47,65 @@ export DEVECO_SDK_HOME=$TOOL_HOME/sdk
 export PATH=$TOOL_HOME/tools/ohpm/bin:$TOOL_HOME/tools/hvigor/bin:$TOOL_HOME/tools/node/bin:$PATH
 ```
 
-## 4. 空白 HAP 闸门
+## 4. 空白 HAP 闸门 ✅
 
-（进行中）
+- `flutter create --platforms ohos hello_ohos` 生成完整 ohos 工程（AppScope/entry/
+  build-profile.json5/hvigor）。
+- `flutter build hap --debug` 成功，产物 `entry-default-unsigned.hap` 89M。
+- 结论：工具链闭环成立，OHOS Flutter 分支可构建 HAP。
 
-## 5. FreshCue Mock HAP 闸门
+## 5. FreshCue HAP 闸门 ✅
 
-（待空白 HAP 通过）
+- 安全合并：现有手写 `ohos/` 参考实现移入 `ohos-reference/`；以 3.35.8-ohos-1.0.1
+  生成的 scaffold 作为构建骨架；bundleName 统一 `com.freshcue.app`。
+- pubspec `environment.sdk` 由 `^3.12.2` 放宽为 `^3.9.0`（代码只用 Dart 3.0
+  的 records/patterns/sealed，兼容 3.9.2）。无功能降级。
+- 数据库：接入 CPF-Flutter `flutter_sqflite`（branch br_v2.4.2_ohos @
+  1eefac74916ee14cab6b58da4d60a84153bcb758），sqflite_ohos 随 GeneratedPluginRegistrant
+  编入 HAP；main.dart bootstrap 依据 capability handshake 选择 SQL(OHOS) / 内存(桌面)。
+- analyze 0 issues；测试 119 通过（OHOS Flutter 与官方 Flutter 双跑）。
+
+### HAP 产物（Debug，未签名）
+
+| 阶段 | 命令 | 大小 | SHA-256(前 16) | 签名 | 安装 | 启动 |
+|---|---|---|---|---|---|---|
+| 空白 HAP | flutter build hap --debug | 89M | ea7b3c56bd1d41fe | 否 | 无设备 | 无设备 |
+| FreshCue 全能力 HAP | flutter build hap --debug | 95M(99799087B) | 6867a988838c429c | 否 | 无设备 | 无设备 |
+
+构建命令（完整环境变量）：
+```bash
+export HOS_SDK_HOME=/Applications/DevEco-Studio.app/Contents/sdk
+export PATH=$TOOL_HOME/tools/ohpm/bin:$TOOL_HOME/tools/hvigor/bin:$TOOL_HOME/tools/node/bin:$PATH
+.toolchains/flutter-ohos/bin/flutter build hap --debug
+# 产物: ohos/entry/build/default/outputs/default/entry-default-unsigned.hap
+```
 
 ## 6. 能力拉通记录
 
-（待续）
+统一握手通道 `freshcue/capabilities`（ping / getCapabilities）已编译，诊断页显示
+真实 compiled/available/reason。各 Kit 按 OCR→Share→Reminder 顺序**逐个编译验证**
+（每次单独 clean build，且用注入类型错误的方式验证 ArkTS 类型检查真实生效）。
+
+| 能力 | 真实 API（本机 HarmonyOS SDK API 24） | 状态 | 关键诚实说明 |
+|---|---|---|---|
+| Capability handshake | 自建 MethodChannel | 已编译 | — |
+| 数据库 | sqflite_ohos（RDB） | 已编译 | schema v2 迁移冒烟测试通过 |
+| OCR | `@hms.ai.ocr.textRecognition` recognizeText(Promise) | 已编译 | 结果用 cornerPoints 多边形→包围盒归一化；**无逐行 confidence，返回 null 不伪造** |
+| 分享接收 | `PhotoViewPicker`（图库）+ `systemShare.getSharedData(want)`（Want/sendData skill 接收） | 已编译 | 这是 Want/Ability 级接收，非 ShareKit 发送 API；文档如实命名 |
+| 代理提醒 | `@ohos.reminderAgentManager` publishReminder(Calendar) | 已编译 | **ActionButtonType 仅 CLOSE/SNOOZE，无自定义按钮**；“完成/延后”改为点击通知→进卡片在应用内操作，未硬编不存在字段 |
+| 实况窗 | LiveViewKit | 参考代码 | feature flag 关闭，编译隔离在 ohos-reference/，不阻塞 HAP |
+| Form Kit | — | 未开始 | 本阶段禁止 |
+
+### 关键决策
+- **SDK 品类更正**：DevEco 内置 **HarmonyOS 6.1.1 SDK（API 24）** 含全部 HMS Kit
+  （Core Vision/Share/LiveView/Notification），无需另装。早前可行性报告基于独立
+  OpenHarmony SDK API 23（无 HMS Kit）的判断已被本阶段更新。
+- **INTERNET 权限**：scaffold 模板默认注入 `ohos.permission.INTERNET`，已删除
+  （应用无任何网络代码，符合隐私 §19.2）。
+- 参考实现（旧 ArkTS）与真实 SDK 的差异已在拉通中修正：`ActionButtonType.CUSTOM`
+  不存在、OCR 用 cornerPoints 而非 itemRect、confidence 不存在等。
+
+## 7. 未真机验证（外部阻塞）
+无设备/模拟器（`hdc list targets` 为空）。全部运行期行为（OCR 真识别、分享冷/热启动、
+提醒进程终止后触发、通知点击路由）仍标注未验证，见 docs/device-test-checklist.md。
+

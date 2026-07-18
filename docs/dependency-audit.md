@@ -9,6 +9,7 @@
 | crypto | ^3.0.6 | 纯 Dart | SHA-256 去重 | ✅ | BSD-3 |
 | sqflite_common | ^2.5.5 | 纯 Dart | SQLite API 层（无原生代码） | ✅（factory 由 ohos 插件注入） | MIT |
 | path | ^1.9.0 | 纯 Dart | 路径拼接 | ✅ | BSD-3 |
+| sqflite | git br_v2.4.2_ohos @1eefac74 | 平台插件 | OHOS 真机 SQLite/RDB 持久化 | ✅ 已编译进 HAP | MIT |
 
 ## dev 依赖
 
@@ -26,4 +27,7 @@
 
 ## 真机构建追加（dependency_overrides，锁 commit）
 
-- sqflite（openharmony-sig/flutter_packages 适配分支）——接入时验证并记录 commit。
+- ~~sqflite（openharmony-sig 适配分支）~~ **已正式采用**：CPF-Flutter/flutter_sqflite
+  branch `br_v2.4.2_ohos` @ `1eefac74916ee14cab6b58da4d60a84153bcb758`，
+  在 pubspec `dependencies` 中直接 git 引用（非 override），已随 HAP 编译。
+  桌面测试仍用 `sqflite_common_ffi`（dev 依赖）。
