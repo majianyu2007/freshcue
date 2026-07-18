@@ -11,7 +11,7 @@
         "autoDesignWidth": true
       },
       "colorMode": "auto",
-      "isDynamic": false,
+      "isDynamic": true,
       "isDefault": true,
       "updateEnabled": true,
       "updateDuration": 1,
