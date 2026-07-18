@@ -12,12 +12,12 @@ import '../../core/utils/id_gen.dart';
 import '../../domain/entities/source_asset.dart';
 import '../../domain/enums/enums.dart';
 
-/// 图片资产服务：验证 → 安全复制到沙箱 → 哈希 → 缩略图。
+/// 图片资产服务：验证、安全复制到沙箱、哈希、缩略图。
 /// 文件写入成功后才允许写数据库；数据库失败时调用 [cleanup] 清理孤立文件。
 class ImageAssetService {
   ImageAssetService({required this.sandboxDir, this.maxBytes = 25 * 1024 * 1024});
 
-  /// 应用沙箱内图片目录（如 <files>/assets）。
+  /// 应用沙箱内图片目录（如 files/assets）。
   final String sandboxDir;
   final int maxBytes;
 

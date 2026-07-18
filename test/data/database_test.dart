@@ -7,7 +7,7 @@ import 'package:freshcue/domain/entities/reminder.dart';
 import 'package:freshcue/domain/entities/source_asset.dart';
 import 'package:freshcue/domain/entities/temporal_card.dart';
 import 'package:freshcue/domain/enums/enums.dart';
-import 'package:sqflite_common/sqlite_api.dart';
+
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {

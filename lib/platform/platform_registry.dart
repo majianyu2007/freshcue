@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import '../core/clock/clock.dart';
 import 'channel_gateways.dart';
 import 'gateways.dart';
 import 'mock_gateways.dart';
-import '../core/clock/clock.dart';
 
 /// 平台能力注册表。
 /// Debug：桥接缺席时自动降级 Mock，并置 [usingMocks]=true（UI 显示“模拟能力”横幅）。
