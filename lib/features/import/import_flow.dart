@@ -43,12 +43,6 @@ Future<void> startImportFlow(
                 subtitle: const Text('OCR 不可用或识别失败时的降级方式'),
                 onTap: () => Navigator.pop(context, 'manual'),
               ),
-              ListTile(
-                leading: const Icon(Icons.science_outlined),
-                title: const Text('演示样例'),
-                subtitle: const Text('合成的活动通知截图，不含个人信息'),
-                onTap: () => Navigator.pop(context, 'demo'),
-              ),
             ],
           ),
         ),
@@ -69,12 +63,9 @@ Future<void> startImportFlow(
       final item = await controller.share.pickImage();
       if (item == null) {
         if (context.mounted && controller.usingMockPlatform) {
-          // Mock 环境无图库桥接：引导用演示样例。
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('当前为模拟能力模式，图库不可用，已使用演示样例')),
+            const SnackBar(content: Text('当前环境未连接系统图库，可选择真实中文截图或手动粘贴文字')),
           );
-          await controller.importDemo();
-          if (context.mounted) await openDraftReview(context, controller);
         }
         return;
       }
@@ -101,9 +92,6 @@ Future<void> startImportFlow(
       if (ok && context.mounted) await openDraftReview(context, controller);
     case 'manual':
       if (context.mounted) await _manualInput(context, controller);
-    case 'demo':
-      await controller.importDemo();
-      if (context.mounted) await openDraftReview(context, controller);
   }
 }
 

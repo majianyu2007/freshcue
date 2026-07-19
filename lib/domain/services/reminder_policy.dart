@@ -4,8 +4,13 @@ import '../enums/enums.dart';
 
 /// 提醒策略：默认模板、实例展开、去重、跳过过去、安静时段调整。
 class ReminderPolicy {
-  const ReminderPolicy({this.quietStartHour = 23, this.quietEndHour = 7});
+  const ReminderPolicy({
+    this.quietHoursEnabled = true,
+    this.quietStartHour = 23,
+    this.quietEndHour = 7,
+  });
 
+  final bool quietHoursEnabled;
   final int quietStartHour;
   final int quietEndHour;
 
@@ -35,10 +40,30 @@ class ReminderPolicy {
         add(TemporalRole.eventStart, 10);
         add(TemporalRole.deadline, 1440);
         add(TemporalRole.deadline, 120);
+      case CardCategory.study:
+        add(TemporalRole.eventStart, 1440);
+        add(TemporalRole.eventStart, 60);
+        add(TemporalRole.eventStart, 10);
+        add(TemporalRole.deadline, 1440);
+        add(TemporalRole.deadline, 120);
+      case CardCategory.healthcare:
+        add(TemporalRole.eventStart, 1440);
+        add(TemporalRole.eventStart, 60);
+        add(TemporalRole.expiry, 1440);
       case CardCategory.ticket:
         add(TemporalRole.eventStart, 1440);
         add(TemporalRole.eventStart, 120);
         add(TemporalRole.eventStart, 30);
+      case CardCategory.bill:
+        add(TemporalRole.deadline, 4320);
+        add(TemporalRole.deadline, 1440);
+        add(TemporalRole.deadline, 120);
+      case CardCategory.renewal:
+        add(TemporalRole.expiry, 10080);
+        add(TemporalRole.expiry, 1440);
+      case CardCategory.coupon:
+        add(TemporalRole.expiry, 1440);
+        add(TemporalRole.expiry, 120);
       case CardCategory.deadline:
         add(TemporalRole.deadline, 1440);
         add(TemporalRole.deadline, 120);
@@ -120,7 +145,7 @@ class ReminderPolicy {
   );
 
   bool _inQuietHours(DateTime t) =>
-      t.hour >= quietStartHour || t.hour < quietEndHour;
+      quietHoursEnabled && (t.hour >= quietStartHour || t.hour < quietEndHour);
 
   DateTime _shiftOutOfQuietHours(DateTime t) {
     // 移动到安静时段结束（次日或当日 07:00）。

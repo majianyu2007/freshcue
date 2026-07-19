@@ -35,7 +35,12 @@ class AppTheme {
   static IconData categoryIcon(CardCategory c) => switch (c) {
     CardCategory.pickup => Icons.local_shipping_outlined,
     CardCategory.event => Icons.event_outlined,
+    CardCategory.study => Icons.school_outlined,
+    CardCategory.healthcare => Icons.medical_services_outlined,
     CardCategory.ticket => Icons.confirmation_number_outlined,
+    CardCategory.bill => Icons.receipt_long_outlined,
+    CardCategory.renewal => Icons.autorenew,
+    CardCategory.coupon => Icons.local_offer_outlined,
     CardCategory.deadline => Icons.flag_outlined,
     CardCategory.temporarySecret => Icons.password_outlined,
     CardCategory.generic => Icons.sticky_note_2_outlined,

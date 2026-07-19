@@ -21,6 +21,7 @@ import reminderAgentManager from '@ohos.reminderAgentManager';
 import notificationManager from '@ohos.notificationManager';
 import { liveViewManager } from '@kit.LiveViewKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { common } from '@kit.AbilityKit';
 import { CapabilityRegistry } from './CapabilitiesPlugin';
 
 const BUNDLE = 'com.freshcue.app';
@@ -32,6 +33,11 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
   // 冷启动期间收到的通知点击先入队，Flutter 订阅后一次性补发。
   private queued: Array<Record<string, string>> = [];
   private liveActivity: liveViewManager.LiveView | null = null;
+  private abilityContext: common.UIAbilityContext | null = null;
+
+  setAbilityContext(context: common.UIAbilityContext): void {
+    this.abilityContext = context;
+  }
 
   getUniqueClassName(): string {
     return 'ReminderPlugin';
@@ -92,6 +98,12 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
       case 'requestPermissionIfNeeded':
         this.requestPermission(result);
         break;
+      case 'isNotificationEnabled':
+        this.isNotificationEnabled(result);
+        break;
+      case 'openNotificationSettings':
+        this.openNotificationSettings(result);
+        break;
       case 'scheduleCalendarReminder':
         this.schedule(call, result);
         break;
@@ -116,11 +128,41 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
 
   private async requestPermission(result: MethodResult): Promise<void> {
     try {
+      if (await notificationManager.isNotificationEnabled()) {
+        result.success(true);
+        return;
+      }
       // PUBLISH_AGENT_REMINDER 为安装期授予；此处确保通知开关已开启。
-      await notificationManager.requestEnableNotification();
-      result.success(true);
+      if (this.abilityContext !== null) {
+        await notificationManager.requestEnableNotification(this.abilityContext);
+      } else {
+        await notificationManager.requestEnableNotification();
+      }
+      result.success(await notificationManager.isNotificationEnabled());
     } catch (_e) {
       result.success(false);
+    }
+  }
+
+  private async isNotificationEnabled(result: MethodResult): Promise<void> {
+    try {
+      result.success(await notificationManager.isNotificationEnabled());
+    } catch (_e) {
+      result.success(false);
+    }
+  }
+
+  private async openNotificationSettings(result: MethodResult): Promise<void> {
+    if (this.abilityContext === null) {
+      result.error('notification_settings_unavailable', 'ability_context_missing', null);
+      return;
+    }
+    try {
+      await notificationManager.openNotificationSettings(this.abilityContext);
+      result.success(null);
+    } catch (e) {
+      const err = e as BusinessError;
+      result.error('notification_settings_unavailable', `code=${err.code}`, null);
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_controller.dart';
 import '../../app/theme.dart';
 import '../../core/utils/redactor.dart';
+import '../../domain/entities/source_asset.dart';
 import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
 
@@ -24,7 +25,23 @@ class CardDetailPage extends StatefulWidget {
 }
 
 class _CardDetailPageState extends State<CardDetailPage> {
-  bool secretRevealed = true;
+  late bool secretRevealed;
+  String? _assetId;
+  Future<SourceAsset?>? _assetFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    secretRevealed = widget.controller.showSensitiveCodes;
+  }
+
+  Future<SourceAsset?> _loadAsset(String id) {
+    if (_assetId != id || _assetFuture == null) {
+      _assetId = id;
+      _assetFuture = widget.controller.assets.findById(id);
+    }
+    return _assetFuture!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +183,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: OutlinedButton.icon(
+                child: FilledButton.icon(
                   icon: const Icon(Icons.edit_calendar_outlined),
                   label: const Text('改时间'),
                   onPressed: () => _editTime(card),
@@ -186,12 +203,13 @@ class _CardDetailPageState extends State<CardDetailPage> {
       for (final time in card.keyTimes)
         '${time.$1.label}：${formatDateTime(time.$2)}',
       if (card.location != null) '地点：${card.location}',
-      if (card.secretValue != null) '取件码/入场码：${card.secretValue}',
+      if (card.secretValue != null)
+        '取件码/入场码：${widget.controller.displaySecret(card.secretValue!)}',
       '来自截期',
     ];
     try {
       await widget.controller.share.shareText(
-        title: card.title,
+        title: widget.controller.displayTitle(card),
         text: lines.join('\n'),
       );
     } on Object {
@@ -208,19 +226,73 @@ class _CardDetailPageState extends State<CardDetailPage> {
       return const SizedBox.shrink();
     }
     return FutureBuilder(
-      future: widget.controller.assets.findById(card.sourceAssetId!),
+      future: _loadAsset(card.sourceAssetId!),
       builder: (context, snap) {
         final path = snap.data?.sandboxPath;
         if (path == null || !File(path).existsSync()) {
           return const SizedBox.shrink();
         }
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: 220,
-            child: InteractiveViewer(
-              maxScale: 5,
-              child: Image.file(File(path), fit: BoxFit.contain),
+        final file = File(path);
+        return Semantics(
+          button: true,
+          label: '查看原图',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => _FullScreenImagePage(
+                  file: file,
+                  title: card.title,
+                  heroTag: 'source-${card.id}',
+                ),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                height: 220,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Hero(
+                      tag: 'source-${card.id}',
+                      child: Image.file(file, fit: BoxFit.contain),
+                    ),
+                    Positioned(
+                      right: 10,
+                      bottom: 10,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.open_in_full,
+                                color: Colors.white,
+                                size: 17,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                '查看原图',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -259,14 +331,14 @@ class _CardDetailPageState extends State<CardDetailPage> {
               ),
               title: Text(formatDateTime(i.triggerAt)),
               subtitle: i.status == ReminderStatus.failed
-                  ? Text('创建失败：${i.failureReason ?? '未知'}')
+                  ? const Text('系统暂时无法创建提醒，请到“设置 → 提醒”检查通知')
                   : null,
               trailing: Text(switch (i.status) {
                 ReminderStatus.scheduled => '已调度',
                 ReminderStatus.fired => '已触发',
                 ReminderStatus.snoozed => '已延后',
                 ReminderStatus.cancelled => '已取消',
-                ReminderStatus.failed => '失败',
+                ReminderStatus.failed => '未创建',
               }),
             ),
         ],
@@ -350,4 +422,70 @@ class _CardDetailPageState extends State<CardDetailPage> {
         }
     }
   }
+}
+
+class _FullScreenImagePage extends StatelessWidget {
+  const _FullScreenImagePage({
+    required this.file,
+    required this.title,
+    required this.heroTag,
+  });
+
+  final File file;
+  final String title;
+  final String heroTag;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.black,
+    appBar: AppBar(
+      foregroundColor: Colors.white,
+      backgroundColor: Colors.black,
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white),
+      ),
+    ),
+    body: SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 8,
+              boundaryMargin: const EdgeInsets.all(80),
+              child: Center(
+                child: Hero(
+                  tag: heroTag,
+                  child: Image.file(file, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 18,
+            child: Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.62),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  child: Text(
+                    '双指缩放 · 拖动查看',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

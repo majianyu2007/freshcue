@@ -7,6 +7,7 @@ import '../core/clock/clock.dart';
 import '../core/errors/app_failure.dart';
 import '../core/logging/app_log.dart';
 import '../core/utils/id_gen.dart';
+import '../core/utils/redactor.dart';
 import '../data/card_service.dart';
 import '../data/database/image_asset_service.dart';
 import '../data/repositories/memory_repositories.dart';
@@ -21,7 +22,6 @@ import '../domain/services/freshness_policy.dart';
 import '../domain/services/reminder_policy.dart';
 import '../platform/capabilities.dart';
 import '../platform/gateways.dart';
-import '../platform/mock_gateways.dart';
 
 /// 导入流程阶段（处理页展示，不伪造百分比）。
 enum ImportStage {
@@ -98,7 +98,7 @@ class AppController extends ChangeNotifier {
 
   late final ScreenshotParser _parser;
   final FreshnessPolicy freshness = const FreshnessPolicy();
-  final ReminderPolicy reminderPolicy = const ReminderPolicy();
+  ReminderPolicy get reminderPolicy => cardService.policy;
 
   List<TemporalCard> activeCards = [];
   List<TemporalCard> expiredCards = [];
@@ -112,6 +112,10 @@ class AppController extends ChangeNotifier {
   bool onboardingComplete = false;
   OcrModelStatus ocrModelStatus = const OcrModelStatus.unavailable();
   bool downloadingOcrModels = false;
+  bool quietHoursEnabled = true;
+  int quietStartHour = 23;
+  int quietEndHour = 7;
+  bool showSensitiveCodes = true;
 
   Future<void> refreshOcrModelStatus() async {
     ocrModelStatus = await ocr.getModelStatus();
@@ -165,6 +169,46 @@ class AppController extends ChangeNotifier {
     return granted;
   }
 
+  Future<void> openNotificationSettings() async {
+    await reminderGateway.openNotificationSettings();
+    notificationPermissionGranted = await reminderGateway
+        .getNotificationPermissionStatus();
+    notifyListeners();
+  }
+
+  Future<int> updateQuietHours({
+    required bool enabled,
+    required int startHour,
+    required int endHour,
+  }) async {
+    quietHoursEnabled = enabled;
+    quietStartHour = startHour;
+    quietEndHour = endHour;
+    _applyPreferences();
+    await settings.set('quiet_hours_enabled', enabled ? '1' : '0');
+    await settings.set('quiet_start_hour', '$startHour');
+    await settings.set('quiet_end_hour', '$endHour');
+    var failures = 0;
+    for (final card in activeCards) {
+      failures += await cardService.rebuildReminders(card);
+    }
+    await refresh();
+    return failures;
+  }
+
+  Future<void> setShowSensitiveCodes(bool value) async {
+    showSensitiveCodes = value;
+    _applyPreferences();
+    await settings.set('show_sensitive_codes', value ? '1' : '0');
+    await refresh();
+  }
+
+  String displaySecret(String secret) =>
+      showSensitiveCodes ? secret : Redactor.maskSecret(secret);
+
+  String displayTitle(TemporalCard card) =>
+      card.isSensitive && !showSensitiveCodes ? '时效提醒' : card.title;
+
   Future<void> sendInstantNotification() => reminderGateway
       .publishInstantNotification(title: '截期通知已就绪', body: '后续到期提醒会显示在这里。');
 
@@ -176,6 +220,15 @@ class AppController extends ChangeNotifier {
 
   Future<void> start() async {
     onboardingComplete = await settings.get('onboarding_complete') == '1';
+    quietHoursEnabled = await settings.get('quiet_hours_enabled') != '0';
+    quietStartHour =
+        int.tryParse(await settings.get('quiet_start_hour') ?? '') ?? 23;
+    quietEndHour =
+        int.tryParse(await settings.get('quiet_end_hour') ?? '') ?? 7;
+    showSensitiveCodes = await settings.get('show_sensitive_codes') != '0';
+    _applyPreferences();
+    notificationPermissionGranted = await reminderGateway
+        .getNotificationPermissionStatus();
     await refreshOcrModelStatus();
     await refresh();
     await cardService.reconcile();
@@ -190,6 +243,15 @@ class AppController extends ChangeNotifier {
         displayName: initial.displayName,
       );
     }
+  }
+
+  void _applyPreferences() {
+    cardService.policy = ReminderPolicy(
+      quietHoursEnabled: quietHoursEnabled,
+      quietStartHour: quietStartHour,
+      quietEndHour: quietEndHour,
+    );
+    cardService.showSensitiveCodes = showSensitiveCodes;
   }
 
   Future<SharedItem?> _safeInitialShare() async {
@@ -243,7 +305,7 @@ class AppController extends ChangeNotifier {
             ? null
             : LiveActivitySnapshot(
                 cardId: card.id,
-                title: card.title,
+                title: displayTitle(card),
                 timeLabel: _formTimeLabel(card, now),
                 endsAt: next.$2,
               ),
@@ -258,7 +320,7 @@ class AppController extends ChangeNotifier {
       for (final card in activeCards.take(3))
         FormCardSnapshot(
           id: card.id,
-          title: card.title,
+          title: displayTitle(card),
           timeLabel: _formTimeLabel(card, now),
         ),
     ];
@@ -281,7 +343,7 @@ class AppController extends ChangeNotifier {
         '${two(time.hour)}:${two(time.minute)}';
     return card.secretValue == null
         ? timeLabel
-        : '码 ${card.secretValue} · $timeLabel';
+        : '码 ${displaySecret(card.secretValue!)} · $timeLabel';
   }
 
   int _byNextKeyTime(TemporalCard a, TemporalCard b) {
@@ -396,13 +458,6 @@ class AppController extends ChangeNotifier {
       return false;
     }
   }
-
-  /// 演示导入：使用 Mock OCR 样例文本（诊断页/空态入口，UI 标注演示）。
-  Future<bool> importDemo() => importFromBytes(
-    tinyPngBytes(),
-    source: ImportSource.demo,
-    displayName: '演示样例.png',
-  );
 
   /// 手动文本降级：用户粘贴文字建卡。
   void importManualText(String text) {

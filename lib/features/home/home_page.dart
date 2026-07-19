@@ -166,10 +166,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 8)),
         if (cards.isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: _EmptyState(controller: widget.controller),
-          )
+          SliverFillRemaining(hasScrollBody: false, child: const _EmptyState())
         else
           SliverList.builder(
             itemCount: cards.length,
@@ -236,8 +233,7 @@ class _ImportAction extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.controller});
-  final AppController controller;
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) => Center(
@@ -259,16 +255,6 @@ class _EmptyState extends StatelessWidget {
             '通过系统分享发送给 FreshCue，\n'
             '或点击上方“导入截图”。',
             textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () async {
-              await controller.importDemo();
-              if (context.mounted) {
-                await openDraftReview(context, controller);
-              }
-            },
-            child: const Text('用演示样例试一试'),
           ),
         ],
       ),

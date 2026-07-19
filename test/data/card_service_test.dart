@@ -74,6 +74,24 @@ void main() {
     );
   });
 
+  test('关闭直接显示后通知遮罩敏感码并隐藏锁屏内容', () async {
+    service.showSensitiveCodes = false;
+    final c = card().copyWith(secretValue: '6-2-8519', isSensitive: true);
+    final plans = const ReminderPolicy().defaultPlans(c, IdGen.newId);
+    await service.confirmCard(c, plans);
+
+    expect(gateway.scheduled, isNotEmpty);
+    expect(
+      gateway.scheduled.values.every(
+        (payload) =>
+            payload.title == '截期提醒' &&
+            !payload.body.contains('6-2-8519') &&
+            payload.hideContentOnLockScreen,
+      ),
+      isTrue,
+    );
+  });
+
   test('编辑时间：旧平台提醒被取消，新提醒重建', () async {
     final c = card();
     final plans = const ReminderPolicy().defaultPlans(c, IdGen.newId);

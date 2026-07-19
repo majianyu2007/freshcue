@@ -107,6 +107,7 @@ class MockReminderGateway implements ReminderGateway {
       StreamController.broadcast();
   int _nextId = 1;
   bool permissionGranted = true;
+  int notificationSettingsOpenCount = 0;
   (String, String)? lastInstantNotification;
   LiveActivitySnapshot? liveActivity;
 
@@ -117,7 +118,15 @@ class MockReminderGateway implements ReminderGateway {
   Future<bool> isAvailable() async => true;
 
   @override
+  Future<bool> getNotificationPermissionStatus() async => permissionGranted;
+
+  @override
   Future<bool> requestPermissionIfNeeded() async => permissionGranted;
+
+  @override
+  Future<void> openNotificationSettings() async {
+    notificationSettingsOpenCount++;
+  }
 
   @override
   Future<int> scheduleCalendarReminder(ReminderPayload payload) async {

@@ -48,7 +48,7 @@ class CardTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      card.title,
+                      controller.displayTitle(card),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium,
@@ -77,7 +77,7 @@ class CardTile extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
                           card.secretValue != null
-                              ? '码 ${card.secretValue!}'
+                              ? '码 ${controller.displaySecret(card.secretValue!)}'
                               : card.location!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

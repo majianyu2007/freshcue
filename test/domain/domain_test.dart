@@ -126,6 +126,22 @@ void main() {
       expect(r.notes.join(), contains('安静时段'));
     });
 
+    test('关闭安静时段后不移动提醒', () {
+      const noQuiet = ReminderPolicy(quietHoursEnabled: false);
+      final c = card(start: DateTime(2026, 7, 25, 23, 30));
+      final plans = [
+        ReminderPlan(
+          id: nid(),
+          cardId: 'c1',
+          anchorRole: TemporalRole.eventStart,
+          offsetMinutes: 1440,
+        ),
+      ];
+      final r = noQuiet.expand(c, plans, now, nid);
+      expect(r.instances.single.triggerAt.hour, 23);
+      expect(r.notes, isEmpty);
+    });
+
     test('紧急提醒（提前<12h）不受安静时段影响', () {
       final c = card(start: DateTime(2026, 7, 19, 0, 30));
       final plans = [
@@ -192,6 +208,19 @@ void main() {
         Redactor.redact('https://x.com/a?token=secret123'),
         isNot(contains('secret123')),
       );
+    });
+    test('平台错误中的本机路径脱敏', () {
+      expect(
+        Redactor.redact('读取 /data/storage/el2/base/files/ocr/model.bin 失败'),
+        isNot(contains('/data/storage')),
+      );
+      expect(
+        Redactor.redact('读取 /Users/test/Private/image.png 失败'),
+        isNot(contains('/Users/test')),
+      );
+    });
+    test('带标签的取件码脱敏', () {
+      expect(Redactor.redact('取件码：6-2-8519'), isNot(contains('6-2-8519')));
     });
     test('秘密值遮罩保留首尾', () {
       expect(Redactor.maskSecret('A7281'), 'A•••1');

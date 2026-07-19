@@ -20,6 +20,7 @@ export default class EntryAbility extends FlutterAbility {
     flutterEngine.getPlugins()?.add(new OcrPlugin())
     this.sharePlugin.setAbilityContext(this.context)
     flutterEngine.getPlugins()?.add(this.sharePlugin)
+    this.reminderPlugin.setAbilityContext(this.context)
     flutterEngine.getPlugins()?.add(this.reminderPlugin)
     flutterEngine.getPlugins()?.add(new FormPlugin())
     // 冷启动：引擎就绪后用启动 Want 尝试分发（分享内容或通知深链）。

@@ -43,7 +43,7 @@ class KitCapability {
     'device_unsupported' => '设备不支持',
     'missing' => '原生未上报',
     '' => '',
-    _ => reason,
+    _ => '平台返回未归类状态',
   };
 }
 

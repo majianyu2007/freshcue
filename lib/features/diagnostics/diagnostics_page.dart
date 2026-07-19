@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../core/logging/app_log.dart';
+import '../../core/utils/redactor.dart';
 import '../../data/database/app_schema.dart';
 import '../../platform/capabilities.dart';
-import '../../platform/gateways.dart';
 
-/// 诊断页：平台能力状态、最近错误（脱敏）、演示提醒。
+/// 诊断页：仅供开发构建查看平台能力与脱敏错误。
 class DiagnosticsPage extends StatelessWidget {
   const DiagnosticsPage({super.key, required this.controller});
 
@@ -20,10 +20,26 @@ class DiagnosticsPage extends StatelessWidget {
         children: [
           _handshakeSection(context),
           const Divider(),
-          _cap('OCR（Core Vision / 离线）', controller.ocr.isAvailable()),
+          ListTile(
+            title: const Text('文字识别'),
+            subtitle: Text(
+              controller.ocrModelStatus.ready
+                  ? '${controller.ocrModelStatus.provider.label} 已就绪'
+                  : '未安装可用识别组件',
+            ),
+            trailing: Icon(
+              controller.ocrModelStatus.ready
+                  ? Icons.check_circle
+                  : Icons.cancel,
+              color: controller.ocrModelStatus.ready
+                  ? Colors.green
+                  : Colors.grey,
+            ),
+          ),
           _cap(
-            '代理提醒（Reminder Agent）',
+            '代理提醒接口（Reminder Agent）',
             controller.reminderGateway.isAvailable(),
+            subtitle: '接口存在不代表未签名模拟器拥有发布资格',
           ),
           ListTile(
             title: const Text('平台模式'),
@@ -41,29 +57,6 @@ class DiagnosticsPage extends StatelessWidget {
             trailing: Text('v${AppSchema.version}'),
           ),
           const Divider(),
-          ListTile(
-            title: const Text('创建 5 分钟演示提醒'),
-            subtitle: const Text('真实调用提醒通道（Mock 模式下仅登记）'),
-            trailing: const Icon(Icons.play_arrow),
-            onTap: () async {
-              try {
-                final id = await controller.reminderGateway
-                    .scheduleCalendarReminder(_demoPayload(controller));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('演示提醒已创建（平台ID $id）')));
-                }
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('演示提醒创建失败')));
-                }
-              }
-            },
-          ),
-          const Divider(),
           const Padding(padding: EdgeInsets.all(16), child: Text('最近平台错误（脱敏）')),
           if (AppLog.recentErrors.isEmpty)
             const Padding(
@@ -77,7 +70,10 @@ class DiagnosticsPage extends StatelessWidget {
                   horizontal: 16,
                   vertical: 2,
                 ),
-                child: Text(e, style: const TextStyle(fontSize: 12)),
+                child: Text(
+                  Redactor.redact(e),
+                  style: const TextStyle(fontSize: 12),
+                ),
               ),
           const SizedBox(height: 32),
         ],
@@ -114,7 +110,20 @@ class DiagnosticsPage extends StatelessWidget {
           ),
           trailing: const Icon(Icons.link, color: Colors.green),
         ),
-        for (final e in names.entries) _kitRow(e.value, caps.kit(e.key)),
+        for (final e in names.entries)
+          _kitRow(
+            e.value,
+            e.key == 'ocr'
+                ? KitCapability(
+                    compiled: caps.kit(e.key).compiled,
+                    available: controller.ocrModelStatus.ready,
+                    provider: controller.ocrModelStatus.provider,
+                    reason: controller.ocrModelStatus.ready
+                        ? ''
+                        : caps.kit(e.key).reason,
+                  )
+                : caps.kit(e.key),
+          ),
       ],
     );
   }
@@ -159,31 +168,22 @@ class DiagnosticsPage extends StatelessWidget {
     ),
   );
 
-  Widget _cap(String name, Future<bool> check) => FutureBuilder<bool>(
-    future: check,
-    builder: (context, snap) => ListTile(
-      title: Text(name),
-      trailing: snap.connectionState != ConnectionState.done
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Icon(
-              snap.data == true ? Icons.check_circle : Icons.cancel,
-              color: snap.data == true ? Colors.green : Colors.grey,
-            ),
-    ),
-  );
-}
-
-ReminderPayload _demoPayload(AppController controller) {
-  final now = controller.clock.now();
-  return ReminderPayload(
-    instanceId: 'demo-${now.millisecondsSinceEpoch}',
-    cardId: 'demo',
-    title: 'FreshCue 演示提醒',
-    body: '这是一条 5 分钟测试提醒',
-    triggerAt: now.add(const Duration(minutes: 5)),
-  );
+  Widget _cap(String name, Future<bool> check, {String? subtitle}) =>
+      FutureBuilder<bool>(
+        future: check,
+        builder: (context, snap) => ListTile(
+          title: Text(name),
+          subtitle: subtitle == null ? null : Text(subtitle),
+          trailing: snap.connectionState != ConnectionState.done
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  snap.data == true ? Icons.check_circle : Icons.cancel,
+                  color: snap.data == true ? Colors.green : Colors.grey,
+                ),
+        ),
+      );
 }

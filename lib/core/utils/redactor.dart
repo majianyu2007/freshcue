@@ -7,6 +7,13 @@ class Redactor {
   static final _idCard = RegExp(r'\d{17}[\dXx]|\d{15}');
   static final _bankCard = RegExp(r'\b\d{16,19}\b');
   static final _urlQuery = RegExp(r'(\?)[^\s]*');
+  static final _privatePath = RegExp(
+    r'(?:file://)?(?:/Users/[^\s]+|/data/(?:storage|app|service)/[^\s]+)',
+  );
+  static final _labeledSecret = RegExp(
+    r'((?:取件码|取餐码|验证码|入场码|门禁码|提货码|邀请码)\s*[:：]?\s*)'
+    r'([A-Za-z0-9-]{3,16})',
+  );
 
   /// 对自由文本脱敏：手机号、身份证、银行卡、URL query。
   static String redact(String input) {
@@ -14,7 +21,12 @@ class Redactor {
     s = s.replaceAllMapped(_idCard, (m) => _mask(m[0]!, keep: 3));
     s = s.replaceAllMapped(_bankCard, (m) => _mask(m[0]!, keep: 4));
     s = s.replaceAllMapped(_phone, (m) => _mask(m[0]!, keep: 3));
+    s = s.replaceAllMapped(
+      _labeledSecret,
+      (m) => '${m[1]}${maskSecret(m[2]!)}',
+    );
     s = s.replaceAllMapped(_urlQuery, (m) => '?«redacted»');
+    s = s.replaceAll(_privatePath, '«private-path»');
     return s;
   }
 

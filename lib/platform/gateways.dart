@@ -221,7 +221,9 @@ class LiveActivitySnapshot {
 /// 真实实现桥接 @ohos.reminderAgentManager。
 abstract interface class ReminderGateway {
   Future<bool> isAvailable();
+  Future<bool> getNotificationPermissionStatus();
   Future<bool> requestPermissionIfNeeded();
+  Future<void> openNotificationSettings();
 
   /// 返回平台 reminder ID；失败抛 AppFailure。
   Future<int> scheduleCalendarReminder(ReminderPayload payload);

@@ -223,6 +223,18 @@ class ChannelReminderGateway implements ReminderGateway {
   }
 
   @override
+  Future<bool> getNotificationPermissionStatus() async {
+    try {
+      return await _channel.invokeMethod<bool>('isNotificationEnabled') ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  @override
   Future<bool> requestPermissionIfNeeded() async {
     try {
       return await _channel.invokeMethod<bool>('requestPermissionIfNeeded') ??
@@ -231,6 +243,17 @@ class ChannelReminderGateway implements ReminderGateway {
       return false;
     } on MissingPluginException {
       return false;
+    }
+  }
+
+  @override
+  Future<void> openNotificationSettings() async {
+    try {
+      await _channel.invokeMethod<void>('openNotificationSettings');
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    } on MissingPluginException {
+      throw const AppFailure(FailureCode.notificationPermissionDenied);
     }
   }
 

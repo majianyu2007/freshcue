@@ -64,6 +64,18 @@ void main() {
     expect(find.text('拍一张'), findsOneWidget);
   });
 
+  testWidgets('更多导入不再展示已失效的演示样例', (tester) async {
+    await controller.refresh();
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('更多'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('体验真实中文截图'), findsOneWidget);
+    expect(find.text('手动粘贴文字'), findsOneWidget);
+    expect(find.text('演示样例'), findsNothing);
+  });
+
   testWidgets('首页有数据状态显示卡片与时间语义', (tester) async {
     await seedCard();
     await tester.pumpWidget(app());
@@ -76,6 +88,79 @@ void main() {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
     expect(find.textContaining('模拟能力模式'), findsOneWidget);
+  });
+
+  testWidgets('设置首页只保留可进入的真实入口', (tester) async {
+    await controller.refreshOcrModelStatus();
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('提醒'), findsOneWidget);
+    expect(find.text('文字识别'), findsOneWidget);
+    expect(find.text('隐私与数据'), findsOneWidget);
+    expect(find.text('关于截期'), findsOneWidget);
+    expect(find.text('发送即时通知'), findsNothing);
+
+    await tester.tap(find.text('文字识别'));
+    await tester.pumpAndSettle();
+    expect(find.text('文字识别已就绪'), findsOneWidget);
+    expect(find.textContaining('模拟 OCR'), findsOneWidget);
+  });
+
+  testWidgets('通知权限行打开系统设置且安静时段可关闭', (tester) async {
+    controller.notificationPermissionGranted = true;
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('提醒'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('通知权限'));
+    await tester.pumpAndSettle();
+    expect(reminderGateway.notificationSettingsOpenCount, 1);
+
+    await tester.tap(find.text('避开夜间提醒'));
+    await tester.pumpAndSettle();
+    expect(controller.quietHoursEnabled, isFalse);
+    expect(await controller.settings.get('quiet_hours_enabled'), '0');
+    expect(find.text('通知测试'), findsOneWidget);
+  });
+
+  testWidgets('关于页面展示产品信息而不是提醒调试工具', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关于截期'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('截期 FreshCue'), findsOneWidget);
+    expect(find.textContaining('把截图变成会提醒'), findsOneWidget);
+    expect(find.text('开源许可'), findsOneWidget);
+    expect(find.textContaining('5 分钟演示提醒'), findsNothing);
+  });
+
+  testWidgets('隐私开关会实际切换敏感码显示', (tester) async {
+    await seedCard(sensitive: true);
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('隐私与数据'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('直接显示敏感码'));
+    await tester.pumpAndSettle();
+    expect(controller.showSensitiveCodes, isFalse);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('时效箱'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('A•••1'), findsOneWidget);
+    expect(find.textContaining('A7281'), findsNothing);
   });
 
   testWidgets('取件码在应用列表中直接显示', (tester) async {
@@ -122,7 +207,13 @@ void main() {
   });
 
   testWidgets('确认页显示实际 OCR provider', (tester) async {
-    final imported = await tester.runAsync(controller.importDemo);
+    final imported = await tester.runAsync(
+      () => controller.importFromBytes(
+        tinyPngBytes(),
+        source: ImportSource.gallery,
+        displayName: 'OCR provider test.png',
+      ),
+    );
     expect(imported, isTrue, reason: controller.importFailure.toString());
     await tester.pumpWidget(
       MaterialApp(home: ReviewPage(controller: controller)),

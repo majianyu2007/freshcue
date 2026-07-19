@@ -2,7 +2,12 @@
 enum CardCategory {
   pickup('取件/取餐'),
   event('活动/会议'),
+  study('课程/考试'),
+  healthcare('就医/用药'),
   ticket('票务/出行'),
+  bill('账单/缴费'),
+  renewal('续费/续期'),
+  coupon('优惠券/兑换'),
   deadline('截止事项'),
   temporarySecret('临时码'),
   generic('临时信息');

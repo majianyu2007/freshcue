@@ -329,6 +329,22 @@ void main() {
     test('车次检票 → ticket', () {
       expect(cat('G102次 检票口B12 7月20日08:15发车 座位05车12F'), CardCategory.ticket);
     });
+    test('医院复诊优先于普通预约 → healthcare', () {
+      expect(cat('市人民医院复诊预约 7月25日14:00'), CardCategory.healthcare);
+    });
+    test('课程考试 → study', () {
+      expect(cat('高等数学期末考试 7月25日14:00 考场A301'), CardCategory.study);
+    });
+    test('生活账单缴费 → bill', () {
+      expect(cat('本月电费缴费截止 7月25日'), CardCategory.bill);
+    });
+    test('会员和证件到期 → renewal', () {
+      expect(cat('视频会员到期：7月31日，请及时续费'), CardCategory.renewal);
+      expect(cat('驾驶证年检 8月12日到期'), CardCategory.renewal);
+    });
+    test('优惠券兑换 → coupon', () {
+      expect(cat('咖啡兑换券 7月31日到期 核销码 A7261'), CardCategory.coupon);
+    });
     test('验证码 → temporarySecret 且敏感', () {
       final d = parser.parseText('您的验证码：392018，10分钟内有效', anchor);
       expect(d.category, CardCategory.temporarySecret);
@@ -339,6 +355,11 @@ void main() {
     });
     test('无信号 → generic', () {
       expect(cat('记得7月26日 10:00那件事'), CardCategory.generic);
+    });
+
+    test('生活场景决策解释可读', () {
+      final d = parser.parseText('医院复诊 7月25日14:00', anchor);
+      expect(d.categoryExplanation, contains('决策路径：健康医疗'));
     });
   });
 
@@ -387,7 +408,7 @@ void main() {
       expect(d.candidates, isEmpty);
       expect(d.title, '未命名卡片');
     });
-    test('演示样例完整解析', () {
+    test('完整通知样例解析', () {
       final d = parser.parseText(
         '校园创新体验日\n报名截止：7月20日 18:00\n活动时间：7月25日 14:00—16:30\n'
         '地点：大学生活动中心 201\n入场码：A7281',

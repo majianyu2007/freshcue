@@ -2,6 +2,7 @@ import '../core/clock/clock.dart';
 import '../core/errors/app_failure.dart';
 import '../core/logging/app_log.dart';
 import '../core/utils/id_gen.dart';
+import '../core/utils/redactor.dart';
 import '../domain/entities/reminder.dart';
 import '../domain/entities/temporal_card.dart';
 import '../domain/enums/enums.dart';
@@ -22,6 +23,7 @@ class CardService {
     required this.assetService,
     required this.clock,
     this.policy = const ReminderPolicy(),
+    this.showSensitiveCodes = true,
   });
 
   final CardRepository cards;
@@ -31,7 +33,8 @@ class CardService {
   final ReminderGateway reminderGateway;
   final ImageAssetService assetService;
   final Clock clock;
-  final ReminderPolicy policy;
+  ReminderPolicy policy;
+  bool showSensitiveCodes;
 
   /// 确认草稿：保存卡片 + 计划 + 实例，并调度系统提醒。
   /// 返回调度失败的实例数（>0 时 UI 显示可恢复错误，不假装全部成功）。
@@ -133,7 +136,8 @@ class CardService {
     final next = card.nextKeyTime(inst.triggerAt);
     final semantic = next == null ? '' : '（${next.$1.label}）';
     final details = <String>[
-      if (card.secretValue != null) '码 ${card.secretValue}',
+      if (card.secretValue != null)
+        '码 ${showSensitiveCodes ? card.secretValue : Redactor.maskSecret(card.secretValue!)}',
       if (card.location != null) '@${card.location}',
     ];
     final body =
@@ -142,10 +146,10 @@ class CardService {
     return ReminderPayload(
       instanceId: inst.id,
       cardId: card.id,
-      title: card.title,
+      title: card.isSensitive && !showSensitiveCodes ? '截期提醒' : card.title,
       body: body,
       triggerAt: inst.triggerAt,
-      hideContentOnLockScreen: false,
+      hideContentOnLockScreen: card.isSensitive && !showSensitiveCodes,
     );
   }
 
