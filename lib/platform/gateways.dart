@@ -188,19 +188,30 @@ class ReminderPayload {
   final bool hideContentOnLockScreen;
 }
 
-/// 通知行为事件。
-enum ReminderActionType { complete, snooze10m, snooze1h, viewSource, opened }
+/// 通知行为事件。`route` 为通用深链（快捷方式、服务卡片等入口）。
+enum ReminderActionType {
+  complete,
+  snooze10m,
+  snooze1h,
+  viewSource,
+  opened,
+  route,
+}
 
 class ReminderActionEvent {
   const ReminderActionEvent({
     required this.action,
     required this.cardId,
     required this.instanceId,
+    this.uri,
   });
 
   final ReminderActionType action;
   final String cardId;
   final String instanceId;
+
+  /// action == route 时的目标深链（freshcue://…）。
+  final String? uri;
 }
 
 class LiveActivitySnapshot {
@@ -279,11 +290,15 @@ class FormCardSnapshot {
     required this.id,
     required this.title,
     required this.timeLabel,
+    this.urgent = false,
   });
 
   final String id;
   final String title;
   final String timeLabel;
+
+  /// 2 小时内到期 → 桌面卡片以强调色展示。
+  final bool urgent;
 }
 
 /// Form Kit 服务卡片数据同步（channel: freshcue/forms）。

@@ -11,80 +11,170 @@ class SettingsPage extends StatelessWidget {
 
   final AppController controller;
 
+  static const _themeLabels = {
+    ThemeMode.system: '跟随系统',
+    ThemeMode.light: '浅色',
+    ThemeMode.dark: '深色',
+  };
+
+  String _tidyLabel(int days) => days <= 0 ? '手动整理' : '过期 $days 天后自动归档';
+
+  Future<void> _chooseTheme(BuildContext context) async {
+    final selected = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('外观')),
+              for (final mode in ThemeMode.values)
+                ListTile(
+                  leading: Icon(switch (mode) {
+                    ThemeMode.system => Icons.brightness_auto_outlined,
+                    ThemeMode.light => Icons.light_mode_outlined,
+                    ThemeMode.dark => Icons.dark_mode_outlined,
+                  }),
+                  title: Text(_themeLabels[mode]!),
+                  trailing: Icon(
+                    controller.themeMode == mode
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                  ),
+                  onTap: () => Navigator.pop(context, mode),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null) await controller.setThemeMode(selected);
+  }
+
+  Future<void> _chooseTidy(BuildContext context) async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text('过期卡片怎么处理'),
+                subtitle: Text('过期的卡片先留在归档的“已过期”里，到期限后自动收进“已完成”'),
+              ),
+              for (final days in const [0, 3, 7, 30])
+                ListTile(
+                  title: Text(days <= 0 ? '不自动整理' : '保留 $days 天'),
+                  trailing: Icon(
+                    controller.autoArchiveDays == days
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                  ),
+                  onTap: () => Navigator.pop(context, days),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null) await controller.setAutoArchiveDays(selected);
+  }
+
   @override
-  Widget build(BuildContext context) => CustomScrollView(
-    slivers: [
-      const SliverAppBar(title: Text('设置'), floating: true),
-      SliverList.list(
-        children: [
-          const _SectionHeader('常用设置'),
-          _DestinationTile(
-            icon: Icons.notifications_active_outlined,
-            title: '提醒',
-            subtitle:
-                '默认用${controller.defaultDeliveryMode.label} · '
-                '${controller.reminderFrequency.label}',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => ReminderSettingsPage(controller: controller),
-              ),
-            ),
-          ),
-          _DestinationTile(
-            icon: Icons.document_scanner_outlined,
-            title: '文字识别',
-            subtitle: controller.ocrModelStatus.ready
-                ? '${controller.ocrModelStatus.provider.label} · 已就绪'
-                : '需要安装离线识别组件',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => OcrSettingsPage(controller: controller),
-              ),
-            ),
-          ),
-          _DestinationTile(
-            icon: Icons.privacy_tip_outlined,
-            title: '隐私与数据',
-            subtitle: controller.showSensitiveCodes
-                ? '取件码直接显示 · 图片只在本机处理'
-                : '取件码默认隐藏 · 图片只在本机处理',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => PrivacySettingsPage(controller: controller),
-              ),
-            ),
-          ),
-          const _SectionHeader('应用'),
-          _DestinationTile(
-            icon: Icons.info_outline,
-            title: '关于截期',
-            subtitle: '版本 0.1.0',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const AboutPage()),
-            ),
-          ),
-          if (kDebugMode) ...[
-            const _SectionHeader('开发'),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => CustomScrollView(
+      slivers: [
+        const SliverAppBar(title: Text('设置'), floating: true),
+        SliverList.list(
+          children: [
+            const _SectionHeader('提醒与识别'),
             _DestinationTile(
-              icon: Icons.build_outlined,
-              title: '开发诊断',
-              subtitle: '能力状态与脱敏错误记录',
+              icon: Icons.notifications_active_outlined,
+              title: '提醒',
+              subtitle:
+                  '默认用${controller.defaultDeliveryMode.label} · '
+                  '${controller.reminderFrequency.label}',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) => DiagnosticsPage(controller: controller),
+                  builder: (_) => ReminderSettingsPage(controller: controller),
                 ),
               ),
             ),
+            _DestinationTile(
+              icon: Icons.document_scanner_outlined,
+              title: '文字识别',
+              subtitle: controller.ocrModelStatus.ready
+                  ? '${controller.ocrModelStatus.provider.label} · 已就绪'
+                  : '需要安装离线识别组件',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => OcrSettingsPage(controller: controller),
+                ),
+              ),
+            ),
+            const _SectionHeader('通用'),
+            ListTile(
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('外观'),
+              subtitle: Text(_themeLabels[controller.themeMode]!),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _chooseTheme(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cleaning_services_outlined),
+              title: const Text('过期整理'),
+              subtitle: Text(_tidyLabel(controller.autoArchiveDays)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _chooseTidy(context),
+            ),
+            _DestinationTile(
+              icon: Icons.privacy_tip_outlined,
+              title: '隐私与数据',
+              subtitle: controller.showSensitiveCodes
+                  ? '取件码直接显示 · 图片只在本机处理'
+                  : '取件码默认隐藏 · 图片只在本机处理',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => PrivacySettingsPage(controller: controller),
+                ),
+              ),
+            ),
+            const _SectionHeader('应用'),
+            _DestinationTile(
+              icon: Icons.info_outline,
+              title: '关于截期',
+              subtitle: '版本 0.2.0',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const AboutPage()),
+              ),
+            ),
+            if (kDebugMode) ...[
+              const _SectionHeader('开发'),
+              _DestinationTile(
+                icon: Icons.build_outlined,
+                title: '开发诊断',
+                subtitle: '能力状态与脱敏错误记录',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => DiagnosticsPage(controller: controller),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 32),
           ],
-          const SizedBox(height: 32),
-        ],
-      ),
-    ],
+        ),
+      ],
+    ),
   );
 }
 
@@ -156,11 +246,16 @@ class ReminderSettingsPage extends StatelessWidget {
             ),
             for (final mode in DeliveryMode.values)
               ListTile(
+                leading: Icon(
+                  mode == DeliveryMode.appReminder
+                      ? Icons.notifications_active_outlined
+                      : Icons.calendar_month_outlined,
+                ),
                 title: Text(mode.label),
                 subtitle: Text(
                   mode == DeliveryMode.appReminder
-                      ? '在截期里统一管理，支持稍后提醒'
-                      : '写入系统日历，由日历负责提醒',
+                      ? '到点弹通知，在截期里统一管理，支持稍后提醒'
+                      : '写进系统日历，由日历负责提醒',
                 ),
                 trailing: Icon(
                   controller.defaultDeliveryMode == mode
@@ -347,7 +442,7 @@ class _NotificationTestPageState extends State<NotificationTestPage> {
         const SizedBox(height: 20),
         Text('发送一条即时通知', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        const Text('只用于检查通知栏是否能够显示，不会创建五分钟提醒，也不会写入时效箱。'),
+        const Text('只用于检查通知栏是否能够显示，不会创建卡片，也不会写入定时提醒。'),
         const SizedBox(height: 24),
         FilledButton.icon(
           onPressed: sending ? null : _send,
@@ -585,10 +680,10 @@ class AboutPage extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 6),
-        const Text('版本 0.1.0', textAlign: TextAlign.center),
+        const Text('版本 0.2.0', textAlign: TextAlign.center),
         const SizedBox(height: 28),
         const _InformationCard(
-          icon: Icons.auto_awesome_outlined,
+          icon: Icons.schedule_outlined,
           title: '把截图变成会提醒的时效信息',
           body: '拍照或导入截图，在本机识别时间、地点和取件码，确认后生成卡片与提醒。',
         ),
@@ -606,7 +701,7 @@ class AboutPage extends StatelessWidget {
           onTap: () => showLicensePage(
             context: context,
             applicationName: '截期 FreshCue',
-            applicationVersion: '0.1.0',
+            applicationVersion: '0.2.0',
           ),
         ),
       ],

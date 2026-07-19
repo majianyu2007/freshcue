@@ -12,6 +12,7 @@ import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
 import '../../domain/parser/screenshot_parser.dart';
 import '../../domain/services/reminder_policy.dart';
+import '../common/image_viewer.dart';
 
 /// 确认页：原图证据 + 高亮 + 字段编辑 + 提醒预览。
 /// 用户确认前不创建任何正式提醒。
@@ -182,6 +183,7 @@ class _ReviewPageState extends State<ReviewPage> {
             asset: ctx.asset,
             blocks: ctx.blocks,
             highlightBlockIds: _highlightIds(),
+            title: titleCtl.text.isEmpty ? '原图' : titleCtl.text,
           ),
           const SizedBox(height: 20),
           const _SectionTitle(title: '卡片内容', subtitle: '有误的地方直接改'),
@@ -234,6 +236,12 @@ class _ReviewPageState extends State<ReviewPage> {
           ),
           const SizedBox(height: 24),
           const _SectionTitle(title: '时间', subtitle: '点一下即可修改'),
+          if (anchors.isEmpty && ctx.draft.candidates.isEmpty)
+            _QuickExpiryChips(
+              now: widget.controller.clock.now(),
+              onPick: (expiry) =>
+                  setState(() => anchors[TemporalRole.expiry] = expiry),
+            ),
           ..._buildCandidateGroups(),
           _AddAnchorButton(
             existing: anchors.keys.toSet(),
@@ -259,15 +267,15 @@ class _ReviewPageState extends State<ReviewPage> {
           const SizedBox(height: 14),
           ExpansionTile(
             tilePadding: const EdgeInsets.symmetric(horizontal: 4),
-            title: const Text('识别说明'),
-            subtitle: const Text('需要时再查看原文和判断依据'),
+            title: const Text('识别详情'),
+            subtitle: const Text('识别方式和判断依据'),
             children: [
               ListTile(
                 title: const Text('文字识别'),
                 trailing: Text(ctx.ocrProvider.label),
               ),
               ListTile(
-                title: const Text('分类依据'),
+                title: const Text('分类'),
                 subtitle: Text(ctx.draft.categoryExplanation),
               ),
               for (final warning in ctx.draft.warnings)
@@ -523,17 +531,19 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 }
 
-/// 原图证据视图（可缩放）+ OCR 高亮框。
+/// 原图证据视图：内嵌高亮框，点图进入全屏缩放（不在列表里抢滚动手势）。
 class _EvidenceImage extends StatelessWidget {
   const _EvidenceImage({
     required this.asset,
     required this.blocks,
     required this.highlightBlockIds,
+    required this.title,
   });
 
   final SourceAsset? asset;
   final List<OcrBlock> blocks;
   final Set<String> highlightBlockIds;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -546,20 +556,30 @@ class _EvidenceImage extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
         alignment: Alignment.center,
-        child: const Text('无图片（手动输入模式）'),
+        child: const Text('这张卡片来自手动输入，没有图片'),
       );
     }
-    return ClipRRect(
+    final file = File(path);
+    return InkWell(
       borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        height: 260,
-        child: InteractiveViewer(
-          maxScale: 5,
+      onTap: () => openImageViewer(
+        context,
+        file: file,
+        title: title,
+        heroTag: 'review-$path',
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          height: 240,
           child: LayoutBuilder(
             builder: (context, constraints) => Stack(
               fit: StackFit.expand,
               children: [
-                Image.file(File(path), fit: BoxFit.contain),
+                Hero(
+                  tag: 'review-$path',
+                  child: Image.file(file, fit: BoxFit.contain),
+                ),
                 // 高亮框基于归一化坐标铺在 contain 后的整个区域。
                 for (final b in blocks)
                   if (highlightBlockIds.contains(b.id))
@@ -582,6 +602,43 @@ class _EvidenceImage extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 无时间信息时的一键保鲜期：随手记场景常用“先存着，过几天自动过期”。
+class _QuickExpiryChips extends StatelessWidget {
+  const _QuickExpiryChips({required this.now, required this.onPick});
+
+  final DateTime now;
+  final ValueChanged<DateTime> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime(now.year, now.month, now.day);
+    final options = <(String, DateTime)>[
+      ('今晚失效', today.add(const Duration(hours: 22))),
+      ('明晚失效', today.add(const Duration(days: 1, hours: 22))),
+      ('留 3 天', today.add(const Duration(days: 3, hours: 22))),
+      ('留一周', today.add(const Duration(days: 7, hours: 22))),
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('先记着，之后自动过期：', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final (label, at) in options)
+                if (at.isAfter(now))
+                  ActionChip(label: Text(label), onPressed: () => onPick(at)),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -630,8 +687,8 @@ class _DeliveryPicker extends StatelessWidget {
       Expanded(
         child: _DeliveryOption(
           icon: Icons.notifications_active_outlined,
-          title: '截期提醒',
-          subtitle: '在应用里管理',
+          title: '应用通知',
+          subtitle: '到点弹通知提醒',
           selected: value == DeliveryMode.appReminder,
           onTap: () => onChanged(DeliveryMode.appReminder),
         ),
@@ -641,7 +698,7 @@ class _DeliveryPicker extends StatelessWidget {
         child: _DeliveryOption(
           icon: Icons.calendar_month_outlined,
           title: '系统日程',
-          subtitle: calendarEnabled ? '在日历里管理' : '需要先设时间',
+          subtitle: calendarEnabled ? '写进系统日历' : '需要先设时间',
           selected: value == DeliveryMode.systemCalendar,
           enabled: calendarEnabled,
           onTap: () => onChanged(DeliveryMode.systemCalendar),

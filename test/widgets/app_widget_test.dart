@@ -74,8 +74,8 @@ void main() {
     await tester.tap(find.text('更多'));
     await tester.pumpAndSettle();
 
-    expect(find.text('体验真实中文截图'), findsOneWidget);
-    expect(find.text('手动粘贴文字'), findsOneWidget);
+    expect(find.text('试试示例截图'), findsOneWidget);
+    expect(find.text('手动输入文字'), findsOneWidget);
     expect(find.text('演示样例'), findsNothing);
   });
 
@@ -102,14 +102,42 @@ void main() {
 
     expect(find.text('提醒'), findsOneWidget);
     expect(find.text('文字识别'), findsOneWidget);
+    expect(find.text('外观'), findsOneWidget);
+    expect(find.text('过期整理'), findsOneWidget);
     expect(find.text('隐私与数据'), findsOneWidget);
-    expect(find.text('关于截期'), findsOneWidget);
     expect(find.text('发送即时通知'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('关于截期'),
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('关于截期'), findsOneWidget);
 
     await tester.tap(find.text('文字识别'));
     await tester.pumpAndSettle();
     expect(find.text('文字识别已就绪'), findsOneWidget);
     expect(find.textContaining('模拟 OCR'), findsOneWidget);
+  });
+
+  testWidgets('外观与过期整理可修改并持久化', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('外观'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('深色'));
+    await tester.pumpAndSettle();
+    expect(controller.themeMode, ThemeMode.dark);
+    expect(await controller.settings.get('theme_mode'), 'dark');
+
+    await tester.tap(find.text('过期整理'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保留 30 天'));
+    await tester.pumpAndSettle();
+    expect(controller.autoArchiveDays, 30);
+    expect(await controller.settings.get('auto_archive_days'), '30');
   });
 
   testWidgets('通知权限行打开系统设置且安静时段可关闭', (tester) async {
@@ -166,6 +194,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('关于截期'),
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('关于截期'));
     await tester.pumpAndSettle();
 
@@ -189,7 +222,7 @@ void main() {
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('时效箱'));
+    await tester.tap(find.text('首页'));
     await tester.pumpAndSettle();
     expect(find.textContaining('A•••1'), findsOneWidget);
     expect(find.textContaining('A7281'), findsNothing);
@@ -277,7 +310,7 @@ void main() {
       MaterialApp(home: ReviewPage(controller: controller)),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('识别说明'));
+    await tester.tap(find.text('识别详情'));
     await tester.pumpAndSettle();
     expect(find.text('模拟 OCR'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -382,8 +415,8 @@ void main() {
     await tester.pumpAndSettle();
     // 首页不显示过期卡
     expect(find.text('已过期讲座'), findsNothing);
-    // 切到过期箱
-    await tester.tap(find.text('过期箱'));
+    // 切到归档
+    await tester.tap(find.text('归档'));
     await tester.pumpAndSettle();
     expect(find.text('已过期讲座'), findsOneWidget);
     expect(find.text('恢复并重设时间'), findsOneWidget);

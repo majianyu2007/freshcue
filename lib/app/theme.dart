@@ -43,6 +43,7 @@ class AppTheme {
     CardCategory.coupon => Icons.local_offer_outlined,
     CardCategory.deadline => Icons.flag_outlined,
     CardCategory.temporarySecret => Icons.password_outlined,
+    CardCategory.note => Icons.edit_note_outlined,
     CardCategory.generic => Icons.sticky_note_2_outlined,
   };
 
@@ -79,6 +80,13 @@ class AppTheme {
           ? Typography.material2021().white.merge(textTheme)
           : textTheme,
       useMaterial3: true,
+      // 页面进出统一使用轻快的前进式淡入淡出，避免生硬跳变。
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          for (final platform in TargetPlatform.values)
+            platform: const FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -89,6 +97,13 @@ class AppTheme {
         ),
         color: dark ? scheme.surfaceContainerLow : Colors.white,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 68,
+        elevation: 0,
+        backgroundColor: dark ? scheme.surfaceContainerLow : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: scheme.primaryContainer,
       ),
       appBarTheme: AppBarTheme(
         centerTitle: false,

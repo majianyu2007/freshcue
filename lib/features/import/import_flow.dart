@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/app_controller.dart';
+import '../../core/errors/app_failure.dart';
 import '../../domain/enums/enums.dart';
+import '../../platform/gateways.dart';
 import '../review/review_page.dart';
 
 /// 导入流程入口：选择来源 → 处理页 → 确认页。
@@ -23,7 +25,7 @@ Future<void> startImportFlow(
               ListTile(
                 leading: const Icon(Icons.add_a_photo_outlined),
                 title: const Text('拍一张'),
-                subtitle: const Text('打开系统相机，拍下含有时间的信息'),
+                subtitle: const Text('对着便签、面单、票据直接拍'),
                 onTap: () => Navigator.pop(context, 'camera'),
               ),
               ListTile(
@@ -32,15 +34,15 @@ Future<void> startImportFlow(
                 onTap: () => Navigator.pop(context, 'gallery'),
               ),
               ListTile(
-                leading: const Icon(Icons.auto_awesome_outlined),
-                title: const Text('体验真实中文截图'),
-                subtitle: const Text('取件、票务、活动通知，走完整离线 OCR'),
+                leading: const Icon(Icons.image_search_outlined),
+                title: const Text('试试示例截图'),
+                subtitle: const Text('用三张常见截图体验完整识别过程'),
                 onTap: () => Navigator.pop(context, 'samples'),
               ),
               ListTile(
                 leading: const Icon(Icons.keyboard_alt_outlined),
-                title: const Text('手动粘贴文字'),
-                subtitle: const Text('OCR 不可用或识别失败时的降级方式'),
+                title: const Text('手动输入文字'),
+                subtitle: const Text('没有截图时直接打字'),
                 onTap: () => Navigator.pop(context, 'manual'),
               ),
             ],
@@ -51,7 +53,17 @@ Future<void> startImportFlow(
 
   switch (choice) {
     case 'camera':
-      final item = await controller.share.capturePhoto();
+      final SharedItem? item;
+      try {
+        item = await controller.share.capturePhoto();
+      } on AppFailure {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('相机暂时打不开，可以改从图库选择')));
+        }
+        return;
+      }
       if (item == null || !context.mounted) return;
       final ok = await controller.importFromBytes(
         item.bytes,
@@ -60,11 +72,21 @@ Future<void> startImportFlow(
       );
       if (ok && context.mounted) await openDraftReview(context, controller);
     case 'gallery':
-      final item = await controller.share.pickImage();
+      final SharedItem? item;
+      try {
+        item = await controller.share.pickImage();
+      } on AppFailure {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('图库暂时打不开，请稍后再试')));
+        }
+        return;
+      }
       if (item == null) {
         if (context.mounted && controller.usingMockPlatform) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('当前环境未连接系统图库，可选择真实中文截图或手动粘贴文字')),
+            const SnackBar(content: Text('当前环境未连接系统图库，可以试试示例截图或手动输入文字')),
           );
         }
         return;
@@ -99,7 +121,7 @@ Future<(String, String)?> _chooseSample(BuildContext context) =>
     showDialog<(String, String)>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: const Text('选择一张中文截图'),
+        title: const Text('选一张示例截图'),
         children: [
           for (final sample in const [
             ('assets/samples/parcel_pickup.png', '快递取件通知', '识别取件码与免费保管截止时间'),

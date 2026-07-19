@@ -90,6 +90,21 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
     }
   }
 
+  /// 通用深链（快捷方式、服务卡片等）：交给 Flutter 路由解析。
+  emitRoute(uri: string): void {
+    const payload: Record<string, string> = {
+      'action': 'route',
+      'cardId': '',
+      'instanceId': '',
+      'uri': uri,
+    };
+    if (this.sink !== null) {
+      this.sink.success(payload);
+    } else {
+      this.queued.push(payload);
+    }
+  }
+
   onMethodCall(call: MethodCall, result: MethodResult): void {
     switch (call.method) {
       case 'isAvailable':

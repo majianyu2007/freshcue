@@ -19,20 +19,25 @@ class FreshCueApp extends StatelessWidget {
   final bool? showOnboarding;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: '截期 FreshCue',
-    theme: AppTheme.light(),
-    darkTheme: AppTheme.dark(),
-    locale: const Locale('zh', 'CN'),
-    supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
-    localizationsDelegates: const [
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    home: AppShell(
-      controller: controller,
-      showOnboarding: showOnboarding ?? !controller.onboardingComplete,
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => MaterialApp(
+      title: '截期 FreshCue',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: controller.themeMode,
+      locale: const Locale('zh', 'CN'),
+      supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: AppShell(
+        controller: controller,
+        showOnboarding: showOnboarding ?? !controller.onboardingComplete,
+      ),
     ),
   );
 }
@@ -102,8 +107,17 @@ class _AppShellState extends State<AppShell> {
         _openCard(route.id!);
       case RouteKind.archive:
         setState(() => tab = 1);
-      case RouteKind.home:
       case RouteKind.import_:
+        // 长按图标快捷方式：直接进入拍照/选图。
+        setState(() => tab = 0);
+        final mode = route.id;
+        if (onboardingDone && (mode == 'camera' || mode == 'gallery')) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            startImportFlow(context, widget.controller, initialChoice: mode);
+          });
+        }
+      case RouteKind.home:
         setState(() => tab = 0);
     }
   }
@@ -146,7 +160,7 @@ class _AppShellState extends State<AppShell> {
                         stage: stage,
                         onCancel: widget.controller.cancelImport,
                       )
-                    : IndexedStack(
+                    : _FadeThroughIndexedStack(
                         index: tab,
                         children: [
                           HomePage(
@@ -168,14 +182,14 @@ class _AppShellState extends State<AppShell> {
             onDestinationSelected: (i) => setState(() => tab = i),
             destinations: const [
               NavigationDestination(
-                icon: Icon(Icons.inbox_outlined),
-                selectedIcon: Icon(Icons.inbox),
-                label: '时效箱',
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: '首页',
               ),
               NavigationDestination(
                 icon: Icon(Icons.inventory_2_outlined),
                 selectedIcon: Icon(Icons.inventory_2),
-                label: '过期箱',
+                label: '归档',
               ),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),
@@ -188,6 +202,56 @@ class _AppShellState extends State<AppShell> {
       },
     );
   }
+}
+
+/// 底部页签切换动效：切换瞬间轻微上移 + 淡入，保留各页滚动位置。
+class _FadeThroughIndexedStack extends StatefulWidget {
+  const _FadeThroughIndexedStack({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  State<_FadeThroughIndexedStack> createState() =>
+      _FadeThroughIndexedStackState();
+}
+
+class _FadeThroughIndexedStackState extends State<_FadeThroughIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(_FadeThroughIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.25, 1, curve: Curves.easeOut),
+    ),
+    child: SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, 0.012),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut)),
+      child: IndexedStack(index: widget.index, children: widget.children),
+    ),
+  );
 }
 
 /// 首次启动引导：解释核心能力，在用户理解用途后申请通知权限。

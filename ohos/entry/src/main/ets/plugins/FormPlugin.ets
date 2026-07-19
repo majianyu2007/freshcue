@@ -53,7 +53,7 @@ export class FormPlugin implements FlutterPlugin, MethodCallHandler {
       return;
     }
     try {
-      const rawCards = call.argument('cards') as Array<Record<string, Object>>;
+      const rawCards = call.argument('cards') as Array<Map<string, Object>>;
       const data = this.flatten(rawCards ?? []);
       const store = preferences.getPreferencesSync(this.context, { name: STORE_NAME });
       store.putSync(STORE_KEY, JSON.stringify(data));
@@ -72,22 +72,36 @@ export class FormPlugin implements FlutterPlugin, MethodCallHandler {
     }
   }
 
-  private flatten(cards: Array<Record<string, Object>>): Record<string, Object> {
+  // StandardMessageCodec 的 MAP 分支固定解码为 Map；不能用 instanceof
+  // 判断，因为跨 ArkTS 模块边界时会返回 false。
+  private static readString(card: Map<string, Object>, key: string): string {
+    const value = card.get(key);
+    return typeof value === 'string' ? value as string : '';
+  }
+
+  private static readBool(card: Map<string, Object>, key: string): boolean {
+    return card.get(key) === true;
+  }
+
+  private flatten(cards: Array<Map<string, Object>>): Record<string, Object> {
     const count = Math.min(cards.length, MAX_CARDS);
     const data: Record<string, Object> = { 'count': count };
     for (let index = 0; index < MAX_CARDS; index++) {
       let id = '';
       let title = '';
       let timeLabel = '';
+      let urgent = false;
       if (index < count) {
         const card = cards[index];
-        id = typeof card['id'] === 'string' ? card['id'] as string : '';
-        title = typeof card['title'] === 'string' ? card['title'] as string : '';
-        timeLabel = typeof card['timeLabel'] === 'string' ? card['timeLabel'] as string : '';
+        id = FormPlugin.readString(card, 'id');
+        title = FormPlugin.readString(card, 'title');
+        timeLabel = FormPlugin.readString(card, 'timeLabel');
+        urgent = FormPlugin.readBool(card, 'urgent');
       }
       data[`card${index}Title`] = title;
       data[`card${index}Time`] = timeLabel;
-      data[`card${index}Uri`] = id.length === 0 ? 'freshcue://archive' : `freshcue://card/${id}`;
+      data[`card${index}Urgent`] = urgent;
+      data[`card${index}Uri`] = id.length === 0 ? 'freshcue://home' : `freshcue://card/${id}`;
     }
     return data;
   }

@@ -11,6 +11,7 @@ enum SpanKind {
   timeRange, // 14:00-16:30
   dateRange, // 7月20日至7月25日
   timeOnly, // 18:00（独立时刻，需与邻近日期合并）
+  duration, // 10分钟内有效 / 有效期3天（相对导入时间的时长）
 }
 
 /// 提取出的原始时间 span（尚未锚定为绝对时间）。
@@ -33,6 +34,7 @@ class TimeSpan {
     this.endDay,
     this.endHour,
     this.endMinute,
+    this.durationMinutes,
     this.hasExplicitTime = false,
   });
 
@@ -63,6 +65,9 @@ class TimeSpan {
   final int? endDay;
   final int? endHour;
   final int? endMinute;
+
+  /// duration 类：相对导入时间的有效时长（分钟）。
+  final int? durationMinutes;
 
   final bool hasExplicitTime;
 
@@ -130,6 +135,18 @@ class TimeSpanExtractor {
     (
       SpanKind.timeRange,
       RegExp(r'(\d{1,2}):(\d{2})\s*[-—–~至到]\s*(\d{1,2}):(\d{2})'),
+    ),
+    // 10分钟内有效 / 30分钟内完成支付 / 2小时内取件 / 3天内使用
+    (
+      SpanKind.duration,
+      RegExp(
+        r'(\d{1,3})\s*(分钟|小时|个小时|天|日)\s*[之以]?内\s*(?:有效|失效|过期|完成|使用|取|领|支付|付款)?',
+      ),
+    ),
+    // 有效期3天 / 有效期：48小时 / 有效时长30分钟
+    (
+      SpanKind.duration,
+      RegExp(r'有效(?:期|时长)\s*[:：]?\s*(\d{1,3})\s*(分钟|小时|个小时|天|日)'),
     ),
     // 独立时刻 18:00（需上下文中邻近日期才有意义）
     (SpanKind.timeOnly, RegExp(r'(\d{1,2}):(\d{2})')),
@@ -312,6 +329,21 @@ class TimeSpanExtractor {
           hour: h,
           minute: mi,
           hasExplicitTime: true,
+        );
+      case SpanKind.duration:
+        final amount = p(m[1])!;
+        if (amount == 0) return null;
+        final minutes = switch (m[2]!) {
+          '分钟' => amount,
+          '小时' || '个小时' => amount * 60,
+          _ => amount * 60 * 24, // 天 / 日
+        };
+        return TimeSpan(
+          kind: kind,
+          start: m.start,
+          end: m.end,
+          text: m[0]!,
+          durationMinutes: minutes,
         );
     }
   }

@@ -20,6 +20,14 @@
         "startWindowIcon": "$media:icon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "launchType": "singleton",
+        "metadata": [
+          {
+            // 长按应用图标的快捷方式：快速拍照识别 / 快速导入截图。
+            "name": "ohos.ability.shortcuts",
+            "resource": "$profile:shortcuts_config"
+          }
+        ],
         "skills": [
           {
             "entities": [

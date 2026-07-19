@@ -170,15 +170,56 @@ class _HomePageState extends State<HomePage> {
         else
           SliverList.builder(
             itemCount: cards.length,
-            itemBuilder: (context, i) => CardTile(
-              controller: widget.controller,
-              card: cards[i],
-              onTap: () => widget.onOpenCard(cards[i].id),
-            ),
+            itemBuilder: (context, i) {
+              final card = cards[i];
+              return Dismissible(
+                key: ValueKey('home-${card.id}'),
+                direction: DismissDirection.startToEnd,
+                background: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 28),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.freshColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(Icons.check, color: AppTheme.freshColor),
+                ),
+                onDismissed: (_) => _completeWithUndo(card),
+                child: CardTile(
+                  controller: widget.controller,
+                  card: card,
+                  onTap: () => widget.onOpenCard(card.id),
+                ),
+              );
+            },
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
+  }
+
+  /// 右滑完成 + 撤销。撤销会恢复卡片并重建提醒。
+  Future<void> _completeWithUndo(TemporalCard card) async {
+    await widget.controller.completeCard(card.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('已完成「${widget.controller.displayTitle(card)}」'),
+          action: SnackBarAction(
+            label: '撤销',
+            onPressed: () async {
+              await widget.controller.restoreCard(card.id);
+              await widget.controller.updateCardTimes(card);
+            },
+          ),
+        ),
+      );
   }
 }
 
@@ -251,9 +292,9 @@ class _EmptyState extends StatelessWidget {
           Text('还没有时效卡片', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           const Text(
-            '在聊天、浏览器或图库里看到含时间的截图时，\n'
-            '通过系统分享发送给 FreshCue，\n'
-            '或点击上方“导入截图”。',
+            '取件码、票、缴费单……看到就拍一张，\n'
+            '或把别的应用里的截图用系统分享发给截期，\n'
+            '到时间它会提醒你。',
             textAlign: TextAlign.center,
           ),
         ],

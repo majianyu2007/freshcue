@@ -364,6 +364,7 @@ class CardService {
         await _snooze(e, const Duration(hours: 1));
       case ReminderActionType.viewSource:
       case ReminderActionType.opened:
+      case ReminderActionType.route:
         break; // 路由层负责跳转
     }
   }

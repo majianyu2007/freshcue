@@ -123,6 +123,11 @@ class ScreenshotParser {
 
       var role = roleScores.role;
       var roleConf = roleScores.confidence;
+      // “N分钟内有效”类时长语义上就是失效时间。
+      if (span.kind == SpanKind.duration) {
+        role = TemporalRole.expiry;
+        roleConf = 0.85;
+      }
       // 无关键词的区间/纯时间表达默认按活动开始理解。
       if (role == TemporalRole.unknown &&
           (span.kind == SpanKind.timeRange || span.endHour != null)) {
@@ -203,11 +208,11 @@ class ScreenshotParser {
     // 7. 字段提取。
     final title = _fields.extractTitle(lines);
     final location = _fields.extractLocation(fullText);
-    final secret = _fields.extractSecretCode(fullText);
+    final secret = _fields.extractLabeledSecret(fullText);
     final highRisk = _fields.containsHighRiskInfo(fullText);
 
-    // 8. 卡片分类。
-    final cat = _categories.classify(title, fullText);
+    // 8. 卡片分类（识别到的码标签作为兜底信号）。
+    final cat = _categories.classify(title, fullText, secret: secret);
     var category = cat.category;
     // 只有截止时间且无其他强信号时归为 deadline。
     if (category == CardCategory.generic &&
@@ -217,10 +222,10 @@ class ScreenshotParser {
     }
 
     if (adjusted.isEmpty) {
-      warnings.add('未识别到时间，可手动设定保鲜期');
+      warnings.add('没有认出时间，可以手动补一个，或者不设时间直接存');
     }
     if (highRisk) {
-      warnings.add('检测到疑似证件号/银行卡号，不建议保存此类信息');
+      warnings.add('图里可能有证件号或银行卡号，建议不要保存这类信息');
     }
 
     // 9. 总置信度：各环节启发式分数加权组合。
@@ -243,7 +248,7 @@ class ScreenshotParser {
       category: category,
       categoryExplanation: cat.explanation,
       location: location,
-      secretValue: secret,
+      secretValue: secret?.code,
       isSensitive: secret != null || category == CardCategory.temporarySecret,
       highRisk: highRisk,
       candidates: adjusted,

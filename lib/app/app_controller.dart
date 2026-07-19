@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:sqflite_common/sqlite_api.dart' show Database;
 
 import '../core/clock/clock.dart';
@@ -120,6 +121,10 @@ class AppController extends ChangeNotifier {
   bool showSensitiveCodes = true;
   DeliveryMode defaultDeliveryMode = DeliveryMode.appReminder;
   ReminderFrequency reminderFrequency = ReminderFrequency.standard;
+  ThemeMode themeMode = ThemeMode.system;
+
+  /// 过期卡片在过期箱停留 N 天后自动收进归档；0 表示不自动整理。
+  int autoArchiveDays = 7;
 
   Future<void> refreshOcrModelStatus() async {
     ocrModelStatus = await ocr.getModelStatus();
@@ -222,6 +227,37 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setThemeMode(ThemeMode mode) async {
+    themeMode = mode;
+    await settings.set('theme_mode', mode.name);
+    notifyListeners();
+  }
+
+  Future<void> setAutoArchiveDays(int days) async {
+    autoArchiveDays = days;
+    await settings.set('auto_archive_days', '$days');
+    await _autoTidy();
+    await refresh();
+  }
+
+  /// 把过期超过 [autoArchiveDays] 天的卡片自动收进归档。
+  Future<void> _autoTidy() async {
+    if (autoArchiveDays <= 0) return;
+    final now = clock.now();
+    final active = await cards.listByStatus({CardStatus.active});
+    for (final card in active) {
+      final expiry = card.effectiveExpiry;
+      if (expiry == null) continue;
+      if (now.difference(expiry).inDays >= autoArchiveDays) {
+        try {
+          await cardService.archive(card.id);
+        } on AppFailure catch (failure) {
+          AppLog.w('tidy', '自动归档失败: ${failure.code.name}');
+        }
+      }
+    }
+  }
+
   String displaySecret(String secret) =>
       showSensitiveCodes ? secret : Redactor.maskSecret(secret);
 
@@ -251,10 +287,18 @@ class AppController extends ChangeNotifier {
     reminderFrequency = ReminderFrequency.fromName(
       await settings.get('reminder_frequency') ?? '',
     );
+    final rawThemeMode = await settings.get('theme_mode');
+    themeMode = ThemeMode.values.firstWhere(
+      (mode) => mode.name == rawThemeMode,
+      orElse: () => ThemeMode.system,
+    );
+    autoArchiveDays =
+        int.tryParse(await settings.get('auto_archive_days') ?? '') ?? 7;
     _applyPreferences();
     notificationPermissionGranted = await reminderGateway
         .getNotificationPermissionStatus();
     await refreshOcrModelStatus();
+    await _autoTidy();
     await refresh();
     await cardService.reconcile();
     _shareSub = share.sharedItems.listen(_onShared);
@@ -348,6 +392,7 @@ class AppController extends ChangeNotifier {
           id: card.id,
           title: displayTitle(card),
           timeLabel: _formTimeLabel(card, now),
+          urgent: freshness.evaluate(card, now) == Freshness.urgent,
         ),
     ];
     try {
@@ -395,6 +440,13 @@ class AppController extends ChangeNotifier {
   void _onAction(ReminderActionEvent event) {
     unawaited(() async {
       try {
+        if (event.action == ReminderActionType.route) {
+          // 快捷方式/服务卡片等通用深链：只做路由，无卡片副作用。
+          if (event.uri != null && event.uri!.isNotEmpty) {
+            pendingRoute.value = event.uri;
+          }
+          return;
+        }
         await cardService.handleAction(event);
         await refresh();
         if (event.action == ReminderActionType.opened ||

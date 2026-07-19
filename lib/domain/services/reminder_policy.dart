@@ -73,6 +73,7 @@ class ReminderPolicy {
       case CardCategory.temporarySecret:
         // 不响铃，仅到期前静默提醒。
         add(TemporalRole.expiry, 30, sound: false);
+      case CardCategory.note:
       case CardCategory.generic:
         add(TemporalRole.expiry, 60);
     }

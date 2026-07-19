@@ -4,12 +4,13 @@ enum CardCategory {
   event('活动/会议'),
   study('课程/考试'),
   healthcare('就医/用药'),
-  ticket('票务/出行'),
+  ticket('出行/住宿'),
   bill('账单/缴费'),
   renewal('续费/续期'),
   coupon('优惠券/兑换'),
   deadline('截止事项'),
   temporarySecret('临时码'),
+  note('便签/随手记'),
   generic('临时信息');
 
   const CardCategory(this.label);
@@ -72,7 +73,7 @@ enum ImportSource { share, gallery, camera, demo }
 
 /// 卡片保存后的提醒承载方式。两种方式互斥，避免重复打扰。
 enum DeliveryMode {
-  appReminder('截期提醒'),
+  appReminder('应用通知'),
   systemCalendar('系统日程');
 
   const DeliveryMode(this.label);

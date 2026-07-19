@@ -60,7 +60,24 @@ class DateNormalizer {
           requiresConfirmation: true,
           explanation: '仅识别到时刻，默认按导入当天理解，请确认日期',
         );
+      case SpanKind.duration:
+        // “10分钟内有效”类相对时长：从导入时间起算失效点。
+        final minutes = span.durationMinutes!;
+        return NormalizedTime(
+          dateTime: anchor.add(Duration(minutes: minutes)),
+          hasExplicitTime: true,
+          confidence: 0.75,
+          requiresConfirmation: minutes >= 60 * 24,
+          explanation:
+              '「${span.text.trim()}」从导入时间起算，${_durationLabel(minutes)}后失效',
+        );
     }
+  }
+
+  static String _durationLabel(int minutes) {
+    if (minutes % (60 * 24) == 0) return '${minutes ~/ (60 * 24)} 天';
+    if (minutes % 60 == 0) return '${minutes ~/ 60} 小时';
+    return '$minutes 分钟';
   }
 
   NormalizedTime? _normalizeDate(TimeSpan span, DateTime anchor) {

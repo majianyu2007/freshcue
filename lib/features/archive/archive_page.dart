@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_controller.dart';
 import '../home/card_tile.dart';
 
-/// 过期箱：按过期时间倒序，可恢复或删除应用副本。
+/// 归档：过期卡片按时间倒序，可恢复或删除应用副本；完成/归档的卡片沉底。
 class ArchivePage extends StatelessWidget {
   const ArchivePage({
     super.key,
@@ -20,11 +20,11 @@ class ArchivePage extends StatelessWidget {
     final done = controller.doneCards;
     return CustomScrollView(
       slivers: [
-        const SliverAppBar(title: Text('过期箱'), floating: true),
+        const SliverAppBar(title: Text('归档'), floating: true),
         if (expired.isEmpty && done.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: Text('过期或完成的卡片会自动收纳到这里')),
+            child: Center(child: Text('过期或完成的卡片会自动收进这里')),
           ),
         if (expired.isNotEmpty) ...[
           const SliverToBoxAdapter(
@@ -77,7 +77,7 @@ class ArchivePage extends StatelessWidget {
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
-              child: Text('已完成/已归档'),
+              child: Text('已完成'),
             ),
           ),
           SliverList.builder(

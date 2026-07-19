@@ -355,10 +355,12 @@ class ChannelReminderGateway implements ReminderGateway {
             'snooze_10m' => ReminderActionType.snooze10m,
             'snooze_1h' => ReminderActionType.snooze1h,
             'view_source' => ReminderActionType.viewSource,
+            'route' => ReminderActionType.route,
             _ => ReminderActionType.opened,
           },
-          cardId: m['cardId']! as String,
+          cardId: m['cardId'] as String? ?? '',
           instanceId: m['instanceId'] as String? ?? '',
+          uri: m['uri'] as String?,
         );
       });
 }
@@ -446,7 +448,12 @@ class ChannelFormGateway implements FormGateway {
       await _channel.invokeMethod<void>('updateCards', {
         'cards': [
           for (final card in cards)
-            {'id': card.id, 'title': card.title, 'timeLabel': card.timeLabel},
+            {
+              'id': card.id,
+              'title': card.title,
+              'timeLabel': card.timeLabel,
+              'urgent': card.urgent,
+            },
         ],
       });
     } on MissingPluginException {

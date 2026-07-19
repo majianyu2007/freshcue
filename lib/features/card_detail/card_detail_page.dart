@@ -8,6 +8,7 @@ import '../../core/utils/redactor.dart';
 import '../../domain/entities/source_asset.dart';
 import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
+import '../common/image_viewer.dart';
 
 /// 详情页：原图证据、字段、提醒时间线、操作。
 class CardDetailPage extends StatefulWidget {
@@ -178,6 +179,12 @@ class _CardDetailPageState extends State<CardDetailPage> {
               ),
               contentPadding: EdgeInsets.zero,
             ),
+          if (card.notes != null && card.notes!.trim().isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.notes_outlined),
+              title: Text(card.notes!.trim()),
+              contentPadding: EdgeInsets.zero,
+            ),
           const Divider(height: 32),
           Text('关键时间', style: Theme.of(context).textTheme.titleMedium),
           for (final (role, at) in card.keyTimes)
@@ -240,64 +247,26 @@ class _CardDetailPageState extends State<CardDetailPage> {
           return const SizedBox.shrink();
         }
         final file = File(path);
+        // 点图即看大图，不放按钮。
         return Semantics(
           button: true,
           label: '查看原图',
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: () => Navigator.push(
+            onTap: () => openImageViewer(
               context,
-              MaterialPageRoute<void>(
-                builder: (_) => _FullScreenImagePage(
-                  file: file,
-                  title: card.title,
-                  heroTag: 'source-${card.id}',
-                ),
-              ),
+              file: file,
+              title: card.title,
+              heroTag: 'source-${card.id}',
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: SizedBox(
                 height: 220,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Hero(
-                      tag: 'source-${card.id}',
-                      child: Image.file(file, fit: BoxFit.contain),
-                    ),
-                    Positioned(
-                      right: 10,
-                      bottom: 10,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.open_in_full,
-                                color: Colors.white,
-                                size: 17,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                '查看原图',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                width: double.infinity,
+                child: Hero(
+                  tag: 'source-${card.id}',
+                  child: Image.file(file, fit: BoxFit.contain),
                 ),
               ),
             ),
@@ -471,70 +440,4 @@ class _CardDetailPageState extends State<CardDetailPage> {
         }
     }
   }
-}
-
-class _FullScreenImagePage extends StatelessWidget {
-  const _FullScreenImagePage({
-    required this.file,
-    required this.title,
-    required this.heroTag,
-  });
-
-  final File file;
-  final String title;
-  final String heroTag;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.black,
-    appBar: AppBar(
-      foregroundColor: Colors.white,
-      backgroundColor: Colors.black,
-      title: Text(
-        title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: Colors.white),
-      ),
-    ),
-    body: SafeArea(
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: InteractiveViewer(
-              minScale: 0.8,
-              maxScale: 8,
-              boundaryMargin: const EdgeInsets.all(80),
-              child: Center(
-                child: Hero(
-                  tag: heroTag,
-                  child: Image.file(file, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 18,
-            child: Center(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.62),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  child: Text(
-                    '双指缩放 · 拖动查看',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }

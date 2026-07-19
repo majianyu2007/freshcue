@@ -15,6 +15,14 @@
     {
       "name": "calendar_permission_reason",
       "value": "Create and keep the system calendar events you choose in sync with FreshCue cards"
+    },
+    {
+      "name": "shortcut_camera",
+      "value": "Snap & recognize"
+    },
+    {
+      "name": "shortcut_import",
+      "value": "Import screenshot"
     }
   ]
 }

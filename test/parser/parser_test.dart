@@ -353,13 +353,85 @@ void main() {
     test('仅截止语义 → deadline', () {
       expect(cat('材料提交截止：7月22日'), CardCategory.deadline);
     });
+    test('随手记语义 → note', () {
+      expect(cat('记得7月26日 10:00那件事'), CardCategory.note);
+      expect(cat('备忘：周三去拿证件'), CardCategory.note);
+    });
     test('无信号 → generic', () {
-      expect(cat('记得7月26日 10:00那件事'), CardCategory.generic);
+      expect(cat('7月26日 10:00 那件事'), CardCategory.generic);
+    });
+    test('快递面单运单号 → pickup 并提取单号', () {
+      final d = parser.parseText(
+        '顺丰速运\n运单号 SF1390881712345\n预计7月20日送达',
+        anchor,
+      );
+      expect(d.category, CardCategory.pickup);
+      expect(d.secretValue, 'SF1390881712345');
+    });
+    test('无场景关键词但有取件码标签 → pickup 兜底', () {
+      final d = parser.parseText('8-2-3009 已到站\n取件码：3009', anchor);
+      expect(d.category, CardCategory.pickup);
+    });
+    test('酒店入住退房 → ticket 且时间角色正确', () {
+      final d = parser.parseText(
+        '已订民宿\n入住：7月20日 14:00\n退房：7月22日 12:00',
+        anchor,
+      );
+      expect(d.category, CardCategory.ticket);
+      expect(
+        d.suggestedAnchors[TemporalRole.eventStart],
+        DateTime(2026, 7, 20, 14, 0),
+      );
+      expect(
+        d.suggestedAnchors[TemporalRole.deadline],
+        DateTime(2026, 7, 22, 12, 0),
+      );
+    });
+    test('预售尾款 → deadline 角色', () {
+      final d = parser.parseText('预售订单\n尾款支付截止 7月20日 22:00', anchor);
+      expect(
+        d.suggestedAnchors[TemporalRole.deadline],
+        DateTime(2026, 7, 20, 22, 0),
+      );
     });
 
     test('生活场景决策解释可读', () {
       final d = parser.parseText('医院复诊 7月25日14:00', anchor);
-      expect(d.categoryExplanation, contains('决策路径：健康医疗'));
+      expect(d.categoryExplanation, contains('就医'));
+      expect(d.categoryExplanation, contains('复诊'));
+    });
+  });
+
+  group('相对时长（验证码等临时信息）', () {
+    test('10分钟内有效 → 导入时间 + 10 分钟的失效锚点', () {
+      final d = parser.parseText('您的验证码：392018，10分钟内有效', anchor);
+      expect(
+        d.suggestedAnchors[TemporalRole.expiry],
+        anchor.add(const Duration(minutes: 10)),
+      );
+      expect(d.category, CardCategory.temporarySecret);
+    });
+    test('30分钟内完成支付', () {
+      final d = parser.parseText('订单已提交，请在30分钟内完成支付', anchor);
+      expect(
+        d.suggestedAnchors[TemporalRole.expiry],
+        anchor.add(const Duration(minutes: 30)),
+      );
+    });
+    test('有效期3天', () {
+      final d = parser.parseText('临时门禁码 8842\n有效期3天', anchor);
+      expect(
+        d.suggestedAnchors[TemporalRole.expiry],
+        anchor.add(const Duration(days: 3)),
+      );
+    });
+    test('48小时内取件', () {
+      final d = parser.parseText('包裹已到驿站，请在48小时内取件', anchor);
+      expect(
+        d.suggestedAnchors[TemporalRole.expiry],
+        anchor.add(const Duration(hours: 48)),
+      );
+      expect(d.category, CardCategory.pickup);
     });
   });
 
@@ -383,7 +455,7 @@ void main() {
     test('身份证号触发高风险提示', () {
       final d = parser.parseText('身份证号 110101199003077578', anchor);
       expect(d.highRisk, isTrue);
-      expect(d.warnings.join(), contains('不建议保存'));
+      expect(d.warnings.join(), contains('不要保存'));
     });
   });
 
@@ -391,7 +463,7 @@ void main() {
     test('无日期只有验证码 → 无候选 + 警告', () {
       final d = parser.parseText('门禁码：4471', anchor);
       expect(d.candidates, isEmpty);
-      expect(d.warnings.join(), contains('未识别到时间'));
+      expect(d.warnings.join(), contains('没有认出时间'));
       expect(d.secretValue, '4471');
     });
     test('已过期历史通知：全部候选需确认', () {

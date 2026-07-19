@@ -1,0 +1,36 @@
+{
+  "shortcuts": [
+    {
+      "shortcutId": "quick_camera",
+      "label": "$string:shortcut_camera",
+      "icon": "$media:shortcut_camera",
+      "wants": [
+        {
+          "bundleName": "com.freshcue.app",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "uri": "freshcue://import/camera",
+          "parameters": {
+            "freshcue_shortcut": "camera"
+          }
+        }
+      ]
+    },
+    {
+      "shortcutId": "quick_import",
+      "label": "$string:shortcut_import",
+      "icon": "$media:shortcut_import",
+      "wants": [
+        {
+          "bundleName": "com.freshcue.app",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "uri": "freshcue://import/gallery",
+          "parameters": {
+            "freshcue_shortcut": "gallery"
+          }
+        }
+      ]
+    }
+  ]
+}

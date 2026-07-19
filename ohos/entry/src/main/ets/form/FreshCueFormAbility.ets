@@ -32,9 +32,9 @@ export default class FreshCueFormAbility extends FormExtensionAbility {
   private loadData(): Record<string, Object> {
     const fallback: Record<string, Object> = {
       'count': 0,
-      'card0Title': '', 'card0Time': '', 'card0Uri': 'freshcue://archive',
-      'card1Title': '', 'card1Time': '', 'card1Uri': 'freshcue://archive',
-      'card2Title': '', 'card2Time': '', 'card2Uri': 'freshcue://archive',
+      'card0Title': '', 'card0Time': '', 'card0Urgent': false, 'card0Uri': 'freshcue://home',
+      'card1Title': '', 'card1Time': '', 'card1Urgent': false, 'card1Uri': 'freshcue://home',
+      'card2Title': '', 'card2Time': '', 'card2Urgent': false, 'card2Uri': 'freshcue://home',
     };
     try {
       const store = preferences.getPreferencesSync(this.context, { name: STORE_NAME });

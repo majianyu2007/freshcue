@@ -1,14 +1,27 @@
 import '../../core/utils/redactor.dart';
 
-/// 标题、地点、临时码提取。
+/// 带标签的临时码提取结果；标签用于反哺卡片分类（如取件码 → 取件）。
+class LabeledSecret {
+  const LabeledSecret(this.label, this.code);
+  final String label;
+  final String code;
+}
+
+/// 标题、地点、临时码、运单号提取。
 class FieldExtractor {
   const FieldExtractor();
 
   static final _locationLabel = RegExp(
-    r'(?:地点|地址|会场|教室|门店|取件柜|考场|位置)\s*[:：]?\s*([^\n，。;；]{2,30})',
+    r'(?:地点|地址|会场|教室|门店|取件柜|考场|位置|网点|驿站地址)\s*[:：]?\s*([^\n，。;；]{2,30})',
   );
   static final _codeLabel = RegExp(
-    r'(?:取件码|取餐码|兑换码|门禁码|入场码|核销码|验证码|提货码|邀请码)\s*[:：]?\s*([A-Za-z0-9\-]{3,12})',
+    r'(取件码|取餐码|取货码|自提码|提货码|兑换码|门禁码|入场码|核销码|验证码|邀请码|临时密码|房号|柜号)'
+    r'\s*[:：]?\s*([A-Za-z0-9\-]{3,12})',
+  );
+
+  /// 快递运单号：有明确标签时允许更长的字母数字串（如 SF 开头 15 位）。
+  static final _waybillLabel = RegExp(
+    r'(?:运单号|快递单号|物流单号|快递编号)\s*[:：]?\s*([A-Za-z0-9]{8,22})',
   );
   static final _timeish = RegExp(
     r'\d{1,2}[点时:：]|\d{1,2}\s*月|周[一二三四五六日天]|截止|时间',
@@ -45,15 +58,30 @@ class FieldExtractor {
   }
 
   /// 临时码：必须有标签引导，避免把手机号/身份证误判为验证码。
-  String? extractSecretCode(String fullText) {
+  /// 返回标签供分类参考；无命中时回退到运单号提取。
+  LabeledSecret? extractLabeledSecret(String fullText) {
     final m = _codeLabel.firstMatch(fullText);
-    if (m == null) return null;
-    final code = m[1]!;
-    // 排除疑似手机号/证件号
-    if (RegExp(r'^1[3-9]\d{9}$').hasMatch(code)) return null;
-    if (code.length >= 15) return null;
-    return code;
+    if (m != null) {
+      final code = m[2]!;
+      // 排除疑似手机号/证件号
+      if (!RegExp(r'^1[3-9]\d{9}$').hasMatch(code) && code.length < 15) {
+        return LabeledSecret(m[1]!, code);
+      }
+    }
+    final w = _waybillLabel.firstMatch(fullText);
+    if (w != null) {
+      final number = w[1]!;
+      // 18 位纯数字可能是证件号，运单号场景仍需标签且不以 1 开头的手机号形态。
+      if (!RegExp(r'^\d{17}[\dXx]$').hasMatch(number)) {
+        return LabeledSecret('运单号', number);
+      }
+    }
+    return null;
   }
+
+  /// 兼容入口：只要码值。
+  String? extractSecretCode(String fullText) =>
+      extractLabeledSecret(fullText)?.code;
 
   /// 高风险信息检测（身份证/银行卡）→ 提示不建议保存。
   bool containsHighRiskInfo(String fullText) =>
