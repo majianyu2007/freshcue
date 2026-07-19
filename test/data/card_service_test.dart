@@ -57,6 +57,23 @@ void main() {
     expect(gateway.scheduled.length, instances.length);
   });
 
+  test('敏感码在通知与锁屏载荷中直接显示', () async {
+    final c = card().copyWith(secretValue: '6-2-8519', isSensitive: true);
+    final plans = const ReminderPolicy().defaultPlans(c, IdGen.newId);
+    await service.confirmCard(c, plans);
+
+    expect(gateway.scheduled, isNotEmpty);
+    expect(
+      gateway.scheduled.values.every(
+        (payload) =>
+            payload.title == '测试活动' &&
+            payload.body.contains('6-2-8519') &&
+            !payload.hideContentOnLockScreen,
+      ),
+      isTrue,
+    );
+  });
+
   test('编辑时间：旧平台提醒被取消，新提醒重建', () async {
     final c = card();
     final plans = const ReminderPolicy().defaultPlans(c, IdGen.newId);

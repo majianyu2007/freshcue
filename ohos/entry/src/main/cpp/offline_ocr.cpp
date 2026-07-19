@@ -196,9 +196,36 @@ bool loadOfflineModels(const uint8_t* detParam, size_t detParamSize,
     return true;
 }
 
+bool loadOfflineModelFiles(const char* detParamPath, const char* detModelPath,
+                           const char* recParamPath, const char* recModelPath) {
+    if (detParamPath == nullptr || detModelPath == nullptr ||
+        recParamPath == nullptr || recModelPath == nullptr) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_ready) {
+        return true;
+    }
+    clearModels();
+    if (!g_engine.loadFromFiles(detParamPath, detModelPath,
+                                recParamPath, recModelPath)) {
+        clearModels();
+        return false;
+    }
+    g_engine.setTargetSize(960);
+    g_ready = true;
+    return true;
+}
+
 bool offlineModelReady() {
     std::lock_guard<std::mutex> lock(g_mutex);
     return g_ready;
+}
+
+void clearOfflineModels() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    clearModels();
 }
 
 std::vector<OcrBlock> recognizeOffline(const uint8_t* rgba, int width, int height) {

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../app/theme.dart';
-import '../../core/utils/redactor.dart';
 import '../../domain/entities/temporal_card.dart';
 
 /// 卡片列表项：分类图标、标题、下一关键时间语义、状态、缩略图。
@@ -78,7 +77,7 @@ class CardTile extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
                           card.secretValue != null
-                              ? '码 ${Redactor.maskSecret(card.secretValue!)}'
+                              ? '码 ${card.secretValue!}'
                               : card.location!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# ncnn exposes OpenMP as a transitive dependency. Hvigor records the SDK
+# libomp.so as a runtime file but does not copy it into Flutter-built HAPs,
+# which makes libentry.so fail to load on device. Link the SDK's static OpenMP
+# runtime so the OCR module remains self-contained.
+set(OpenMP_omp_LIBRARY
+    "${OHOS_SDK_NATIVE}/llvm/lib/aarch64-linux-ohos/libomp.a"
+    CACHE FILEPATH "HarmonyOS static OpenMP runtime" FORCE)
+
 set(ncnn_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ncnn-20260526-harmonyos/${OHOS_ARCH}/lib/cmake/ncnn")
 find_package(ncnn REQUIRED)

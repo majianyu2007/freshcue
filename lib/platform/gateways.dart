@@ -181,7 +181,6 @@ class ReminderPayload {
   final String cardId;
   final String title;
 
-  /// 敏感内容必须在调用前遮罩。
   final String body;
   final DateTime triggerAt;
   final bool sound;
@@ -242,7 +241,7 @@ abstract interface class ReminderGateway {
   Stream<ReminderActionEvent> get actions;
 }
 
-/// 服务卡片仅接收展示所需的脱敏快照，不访问 Flutter 数据库。
+/// 服务卡片仅接收展示所需的快照，不访问 Flutter 数据库。
 class FormCardSnapshot {
   const FormCardSnapshot({
     required this.id,

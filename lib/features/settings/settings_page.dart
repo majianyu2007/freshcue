@@ -187,9 +187,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const _SectionHeader('隐私'),
             const ListTile(
-              leading: Icon(Icons.lock_outline),
-              title: Text('锁屏隐私'),
-              subtitle: Text('临时码卡片在锁屏通知中隐藏内容'),
+              leading: Icon(Icons.visibility_outlined),
+              title: Text('敏感码直接显示'),
+              subtitle: Text('应用、锁屏通知、服务卡片与主动分享均显示完整取件码'),
             ),
             const ListTile(
               leading: Icon(Icons.image_outlined),

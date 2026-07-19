@@ -217,7 +217,7 @@ class _ReviewPageState extends State<ReviewPage> {
           TextField(
             controller: secretCtl,
             decoration: const InputDecoration(
-              labelText: '取件码/入场码（保存后默认遮罩）',
+              labelText: '取件码/入场码',
               border: OutlineInputBorder(),
             ),
             onChanged: (_) => setState(() {}),

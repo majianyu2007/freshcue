@@ -243,7 +243,7 @@ class AppController extends ChangeNotifier {
             ? null
             : LiveActivitySnapshot(
                 cardId: card.id,
-                title: card.isSensitive ? '敏感卡片' : card.title,
+                title: card.title,
                 timeLabel: _formTimeLabel(card, now),
                 endsAt: next.$2,
               ),
@@ -258,7 +258,7 @@ class AppController extends ChangeNotifier {
       for (final card in activeCards.take(3))
         FormCardSnapshot(
           id: card.id,
-          title: card.isSensitive ? '敏感卡片' : card.title,
+          title: card.title,
           timeLabel: _formTimeLabel(card, now),
         ),
     ];
@@ -276,8 +276,12 @@ class AppController extends ChangeNotifier {
     if (next == null) return '暂无关键时间';
     final time = next.$2;
     String two(int value) => value.toString().padLeft(2, '0');
-    return '${next.$1.label} ${time.month}/${time.day} '
+    final timeLabel =
+        '${next.$1.label} ${time.month}/${time.day} '
         '${two(time.hour)}:${two(time.minute)}';
+    return card.secretValue == null
+        ? timeLabel
+        : '码 ${card.secretValue} · $timeLabel';
   }
 
   int _byNextKeyTime(TemporalCard a, TemporalCard b) {

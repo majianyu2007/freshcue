@@ -2,7 +2,6 @@ import '../core/clock/clock.dart';
 import '../core/errors/app_failure.dart';
 import '../core/logging/app_log.dart';
 import '../core/utils/id_gen.dart';
-import '../core/utils/redactor.dart';
 import '../domain/entities/reminder.dart';
 import '../domain/entities/temporal_card.dart';
 import '../domain/enums/enums.dart';
@@ -133,18 +132,20 @@ class CardService {
   ReminderPayload _payloadFor(TemporalCard card, ReminderInstance inst) {
     final next = card.nextKeyTime(inst.triggerAt);
     final semantic = next == null ? '' : '（${next.$1.label}）';
-    // 敏感内容遮罩：正文不携带 secretValue 原文。
-    final body = card.isSensitive
-        ? '${card.title}$semantic 内容已隐藏'
-        : '${card.title}$semantic'
-              '${card.location == null ? '' : ' @${card.location}'}';
+    final details = <String>[
+      if (card.secretValue != null) '码 ${card.secretValue}',
+      if (card.location != null) '@${card.location}',
+    ];
+    final body =
+        '${card.title}$semantic'
+        '${details.isEmpty ? '' : ' · ${details.join(' · ')}'}';
     return ReminderPayload(
       instanceId: inst.id,
       cardId: card.id,
-      title: card.isSensitive ? 'FreshCue 提醒' : card.title,
-      body: Redactor.redact(body),
+      title: card.title,
+      body: body,
       triggerAt: inst.triggerAt,
-      hideContentOnLockScreen: card.isSensitive,
+      hideContentOnLockScreen: false,
     );
   }
 

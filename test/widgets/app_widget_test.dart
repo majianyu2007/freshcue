@@ -78,15 +78,15 @@ void main() {
     expect(find.textContaining('模拟能力模式'), findsOneWidget);
   });
 
-  testWidgets('敏感内容在列表中遮罩', (tester) async {
+  testWidgets('取件码在应用列表中直接显示', (tester) async {
     await seedCard(sensitive: true);
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    expect(find.textContaining('A7281'), findsNothing);
-    expect(find.textContaining('A•••1'), findsOneWidget);
+    expect(find.textContaining('A7281'), findsOneWidget);
+    expect(find.textContaining('A•••1'), findsNothing);
   });
 
-  test('服务卡片最多发布3张未完成卡片并遮罩敏感标题', () async {
+  test('服务卡片最多发布3张未完成卡片并直接显示敏感码', () async {
     await seedCard(deadlineAt: DateTime(2026, 7, 19, 18));
     final sensitive = await seedCard(
       sensitive: true,
@@ -100,9 +100,8 @@ void main() {
     final snapshot = formGateway.cards.singleWhere(
       (card) => card.id == sensitive.id,
     );
-    expect(snapshot.title, '敏感卡片');
-    expect(snapshot.title, isNot(contains('A7281')));
-    expect(snapshot.timeLabel, isNotEmpty);
+    expect(snapshot.title, '校园创新体验日');
+    expect(snapshot.timeLabel, contains('A7281'));
   });
 
   testWidgets('确认页：低置信度提示 + 多时间分组 + 提醒预览', (tester) async {

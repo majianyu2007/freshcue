@@ -49,8 +49,50 @@ napi_value LoadModel(napi_env env, napi_callback_info info) {
         recParam, recParamSize, recModel, recModelSize));
 }
 
+bool getUtf8(napi_env env, napi_value value, std::string& result) {
+    size_t size = 0;
+    if (napi_get_value_string_utf8(env, value, nullptr, 0, &size) != napi_ok ||
+        size == 0) {
+        return false;
+    }
+    result.resize(size + 1);
+    size_t written = 0;
+    const bool success = napi_get_value_string_utf8(
+                             env, value, result.data(), result.size(), &written) == napi_ok &&
+        written == size;
+    result.resize(written);
+    return success;
+}
+
+napi_value LoadModelFiles(napi_env env, napi_callback_info info) {
+    size_t argc = 4;
+    napi_value argv[4] = {nullptr, nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+    if (argc != 4) {
+        return booleanValue(env, false);
+    }
+    std::string detParamPath;
+    std::string detModelPath;
+    std::string recParamPath;
+    std::string recModelPath;
+    if (!getUtf8(env, argv[0], detParamPath) ||
+        !getUtf8(env, argv[1], detModelPath) ||
+        !getUtf8(env, argv[2], recParamPath) ||
+        !getUtf8(env, argv[3], recModelPath)) {
+        return booleanValue(env, false);
+    }
+    return booleanValue(env, freshcue::loadOfflineModelFiles(
+        detParamPath.c_str(), detModelPath.c_str(),
+        recParamPath.c_str(), recModelPath.c_str()));
+}
+
 napi_value IsReady(napi_env env, napi_callback_info) {
     return booleanValue(env, freshcue::offlineModelReady());
+}
+
+napi_value ClearModel(napi_env env, napi_callback_info) {
+    freshcue::clearOfflineModels();
+    return booleanValue(env, true);
 }
 
 struct RecognitionWork {
@@ -200,7 +242,9 @@ napi_value Recognize(napi_env env, napi_callback_info info) {
 napi_value Init(napi_env env, napi_value exports) {
     const napi_property_descriptor properties[] = {
         {"loadModel", nullptr, LoadModel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"loadModelFiles", nullptr, LoadModelFiles, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"isReady", nullptr, IsReady, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"clearModel", nullptr, ClearModel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"recognize", nullptr, Recognize, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);

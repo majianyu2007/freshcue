@@ -34,7 +34,7 @@ class TemporalCard {
   final String? summary;
   final String? location;
 
-  /// 敏感值（验证码等），展示时默认遮罩。
+  /// 敏感值（验证码等）；用户界面直接显示，日志仍不得记录。
   final String? secretValue;
   final DateTime? eventStartAt;
   final DateTime? eventEndAt;

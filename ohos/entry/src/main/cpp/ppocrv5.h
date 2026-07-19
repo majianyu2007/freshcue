@@ -32,6 +32,8 @@ public:
 
     bool load(const char* detParam, const unsigned char* detModel,
               const char* recParam, const unsigned char* recModel);
+    bool loadFromFiles(const char* detParamPath, const char* detModelPath,
+                       const char* recParamPath, const char* recModelPath);
     void clear();
     void setTargetSize(int targetSize);
 

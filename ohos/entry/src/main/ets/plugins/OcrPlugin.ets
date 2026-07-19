@@ -137,9 +137,9 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
       return false;
     }
     try {
-      const buffers = MODEL_FILES.map((item: ModelFile): ArrayBuffer =>
-        this.readFile(`${this.modelDir()}/${item.name}`));
-      return offlineOcr.loadModel(buffers[0], buffers[1], buffers[2], buffers[3]);
+      const paths = MODEL_FILES.map((item: ModelFile): string =>
+        `${this.modelDir()}/${item.name}`);
+      return offlineOcr.loadModelFiles(paths[0], paths[1], paths[2], paths[3]);
     } catch (_e) {
       return false;
     }
@@ -198,7 +198,9 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
     this.downloadedBytes = 0;
     this.downloading = true;
     try {
-      fs.mkdirSync(dir, true);
+      if (!fs.accessSync(dir)) {
+        fs.mkdirSync(dir, true);
+      }
       const root = this.sourceRoot(source);
       for (const item of MODEL_FILES) {
         const bytes = await this.download(`${root}/${item.name}`);
@@ -238,6 +240,7 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
 
   private deleteModels(result: MethodResult): void {
     try {
+      offlineOcr.clearModel();
       for (const item of MODEL_FILES) {
         try { fs.unlinkSync(`${this.modelDir()}/${item.name}`); } catch (_e) { /* absent */ }
       }
@@ -265,18 +268,6 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
       return response.result;
     } finally {
       request.destroy();
-    }
-  }
-
-  private readFile(path: string): ArrayBuffer {
-    const file = fs.openSync(path, fs.OpenMode.READ_ONLY);
-    try {
-      const size = fs.statSync(file.fd).size;
-      const buffer = new ArrayBuffer(size);
-      fs.readSync(file.fd, buffer);
-      return buffer;
-    } finally {
-      fs.closeSync(file);
     }
   }
 

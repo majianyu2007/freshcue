@@ -63,16 +63,44 @@ cv::Mat rotateCrop(const cv::Mat& rgb, const OcrObject& object) {
         source[1] = corners[3];
         source[2] = corners[1];
     }
-    const std::vector<cv::Point2f> destination = {
-        cv::Point2f(0.0f, 0.0f),
-        cv::Point2f(static_cast<float>(targetWidth), 0.0f),
-        cv::Point2f(0.0f, static_cast<float>(kTargetHeight)),
-    };
-
-    cv::Mat crop;
-    cv::warpAffine(rgb, crop, cv::getAffineTransform(source, destination),
-                   cv::Size(targetWidth, kTargetHeight), cv::INTER_LINEAR,
-                   cv::BORDER_REPLICATE);
+    // OpenCV Mobile's KleidiCV dispatcher selects SVE2 on the HarmonyOS
+    // emulator although that image cannot execute every SVE2 instruction.
+    // This small portable sampler avoids an unrecoverable SIGILL in
+    // cv::warpAffine while preserving bilinear interpolation and replicated
+    // borders. NCNN still handles the expensive detector/recognizer work.
+    cv::Mat crop(kTargetHeight, targetWidth, CV_8UC4);
+    const cv::Point2f horizontal =
+        (source[1] - source[0]) / static_cast<float>(targetWidth);
+    const cv::Point2f vertical =
+        (source[2] - source[0]) / static_cast<float>(kTargetHeight);
+    for (int y = 0; y < kTargetHeight; ++y) {
+        cv::Vec4b* output = crop.ptr<cv::Vec4b>(y);
+        for (int x = 0; x < targetWidth; ++x) {
+            const cv::Point2f point = source[0] + horizontal * x + vertical * y;
+            const float sourceX = std::clamp(point.x, 0.0f,
+                                             static_cast<float>(rgb.cols - 1));
+            const float sourceY = std::clamp(point.y, 0.0f,
+                                             static_cast<float>(rgb.rows - 1));
+            const int x0 = static_cast<int>(std::floor(sourceX));
+            const int y0 = static_cast<int>(std::floor(sourceY));
+            const int x1 = std::min(x0 + 1, rgb.cols - 1);
+            const int y1 = std::min(y0 + 1, rgb.rows - 1);
+            const float xWeight = sourceX - x0;
+            const float yWeight = sourceY - y0;
+            const cv::Vec4b& topLeft = rgb.at<cv::Vec4b>(y0, x0);
+            const cv::Vec4b& topRight = rgb.at<cv::Vec4b>(y0, x1);
+            const cv::Vec4b& bottomLeft = rgb.at<cv::Vec4b>(y1, x0);
+            const cv::Vec4b& bottomRight = rgb.at<cv::Vec4b>(y1, x1);
+            for (int channel = 0; channel < 4; ++channel) {
+                const float top = topLeft[channel] +
+                    (topRight[channel] - topLeft[channel]) * xWeight;
+                const float bottom = bottomLeft[channel] +
+                    (bottomRight[channel] - bottomLeft[channel]) * xWeight;
+                output[x][channel] = cv::saturate_cast<unsigned char>(
+                    top + (bottom - top) * yWeight);
+            }
+        }
+    }
     return crop;
 }
 
@@ -96,6 +124,30 @@ bool PPOCRv5::load(const char* detParam, const unsigned char* detModel,
 
     if (detector_.load_param_mem(detParam) != 0 || detector_.load_model(detModel) == 0 ||
         recognizer_.load_param_mem(recParam) != 0 || recognizer_.load_model(recModel) == 0) {
+        clear();
+        return false;
+    }
+    return true;
+}
+
+bool PPOCRv5::loadFromFiles(const char* detParamPath, const char* detModelPath,
+                            const char* recParamPath, const char* recModelPath) {
+    clear();
+
+    detector_.opt.num_threads = std::clamp(ncnn::get_big_cpu_count(), 1, 4);
+    detector_.opt.use_fp16_packed = true;
+    detector_.opt.use_fp16_storage = true;
+    detector_.opt.use_fp16_arithmetic = true;
+
+    recognizer_.opt.num_threads = 1;
+    recognizer_.opt.use_fp16_packed = true;
+    recognizer_.opt.use_fp16_storage = true;
+    recognizer_.opt.use_fp16_arithmetic = true;
+
+    if (detector_.load_param(detParamPath) != 0 ||
+        detector_.load_model(detModelPath) != 0 ||
+        recognizer_.load_param(recParamPath) != 0 ||
+        recognizer_.load_model(recModelPath) != 0) {
         clear();
         return false;
     }

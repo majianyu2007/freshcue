@@ -24,7 +24,7 @@ class CardDetailPage extends StatefulWidget {
 }
 
 class _CardDetailPageState extends State<CardDetailPage> {
-  bool secretRevealed = false;
+  bool secretRevealed = true;
 
   @override
   Widget build(BuildContext context) {
@@ -186,6 +186,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
       for (final time in card.keyTimes)
         '${time.$1.label}：${formatDateTime(time.$2)}',
       if (card.location != null) '地点：${card.location}',
+      if (card.secretValue != null) '取件码/入场码：${card.secretValue}',
       '来自截期',
     ];
     try {

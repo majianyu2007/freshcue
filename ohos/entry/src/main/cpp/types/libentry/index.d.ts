@@ -13,7 +13,14 @@ export const loadModel: (
   recParam: ArrayBuffer,
   recModel: ArrayBuffer,
 ) => boolean;
+export const loadModelFiles: (
+  detParamPath: string,
+  detModelPath: string,
+  recParamPath: string,
+  recModelPath: string,
+) => boolean;
 export const isReady: () => boolean;
+export const clearModel: () => boolean;
 export const recognize: (
   rgbaPixels: ArrayBuffer,
   width: number,

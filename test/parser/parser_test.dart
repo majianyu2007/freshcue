@@ -215,6 +215,14 @@ void main() {
       final d = p('有效期至7月31日');
       expect(d.candidates.single.role, TemporalRole.expiry);
     });
+    test('快递免费保管至 → expiry 并生成失效锚点', () {
+      final d = p('取件码 6-2-8519\n免费保管至 7月21日 18:00\n超时收取保管费');
+      expect(d.candidates.single.role, TemporalRole.expiry);
+      expect(
+        d.suggestedAnchors[TemporalRole.expiry],
+        DateTime(2026, 7, 21, 18, 0),
+      );
+    });
     test('截止到7月20日18时 → deadline', () {
       final d = p('截止到7月20日18时');
       expect(d.candidates.single.role, TemporalRole.deadline);
