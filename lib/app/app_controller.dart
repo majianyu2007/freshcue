@@ -43,9 +43,12 @@ class DraftContext {
     required this.capturedAt,
     required this.ocrProvider,
     this.duplicateOfCardId,
+    this.additionalDrafts = const [],
   });
 
   ParsedDraft draft;
+  final List<ParsedDraft> additionalDrafts;
+  List<ParsedDraft> get drafts => [draft, ...additionalDrafts];
   final SourceAsset? asset;
   final List<OcrBlock> blocks;
   final DateTime capturedAt;
@@ -104,6 +107,66 @@ class AppController extends ChangeNotifier {
   ImportStage importStage = ImportStage.idle;
   AppFailure? importFailure;
   DraftContext? pendingDraft;
+  bool? notificationPermissionGranted;
+  bool requestingNotificationPermission = false;
+  bool onboardingComplete = false;
+  OcrModelStatus ocrModelStatus = const OcrModelStatus.unavailable();
+  bool downloadingOcrModels = false;
+
+  Future<void> refreshOcrModelStatus() async {
+    ocrModelStatus = await ocr.getModelStatus();
+    notifyListeners();
+  }
+
+  Future<void> downloadOcrModels(OcrDownloadSource source) async {
+    if (downloadingOcrModels) return;
+    downloadingOcrModels = true;
+    notifyListeners();
+    final progressTimer = Timer.periodic(const Duration(milliseconds: 400), (
+      _,
+    ) async {
+      try {
+        ocrModelStatus = await ocr.getModelStatus();
+        notifyListeners();
+      } on Object {
+        // 下载结果负责报告错误；轮询只刷新进度。
+      }
+    });
+    try {
+      ocrModelStatus = await ocr.downloadModels(source);
+    } finally {
+      progressTimer.cancel();
+      downloadingOcrModels = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteOcrModels() async {
+    ocrModelStatus = await ocr.deleteModels();
+    notifyListeners();
+  }
+
+  Future<void> completeOnboarding() async {
+    await settings.set('onboarding_complete', '1');
+    onboardingComplete = true;
+    notifyListeners();
+  }
+
+  Future<bool> requestNotificationPermission() async {
+    if (requestingNotificationPermission) {
+      return notificationPermissionGranted ?? false;
+    }
+    requestingNotificationPermission = true;
+    notifyListeners();
+    final granted = await reminderGateway.requestPermissionIfNeeded();
+    notificationPermissionGranted = granted;
+    requestingNotificationPermission = false;
+    notifyListeners();
+    return granted;
+  }
+
+  Future<void> sendInstantNotification() => reminderGateway
+      .publishInstantNotification(title: '截期通知已就绪', body: '后续到期提醒会显示在这里。');
 
   StreamSubscription<SharedItem>? _shareSub;
   StreamSubscription<ReminderActionEvent>? _actionSub;
@@ -112,6 +175,8 @@ class AppController extends ChangeNotifier {
   final ValueNotifier<String?> pendingRoute = ValueNotifier(null);
 
   Future<void> start() async {
+    onboardingComplete = await settings.get('onboarding_complete') == '1';
+    await refreshOcrModelStatus();
     await refresh();
     await cardService.reconcile();
     _shareSub = share.sharedItems.listen(_onShared);
@@ -165,7 +230,27 @@ class AppController extends ChangeNotifier {
       CardStatus.archived,
     });
     notifyListeners();
-    unawaited(_publishFormCards(now));
+    unawaited(_publishNativeSurfaces(now));
+  }
+
+  Future<void> _publishNativeSurfaces(DateTime now) async {
+    await _publishFormCards(now);
+    final card = activeCards.firstOrNull;
+    final next = card?.nextKeyTime(now);
+    try {
+      await reminderGateway.syncLiveActivity(
+        card == null || next == null
+            ? null
+            : LiveActivitySnapshot(
+                cardId: card.id,
+                title: card.isSensitive ? '敏感卡片' : card.title,
+                timeLabel: _formTimeLabel(card, now),
+                endsAt: next.$2,
+              ),
+      );
+    } on AppFailure catch (failure) {
+      AppLog.w('live_activity', '实况窗同步失败: ${failure.code.name}');
+    }
   }
 
   Future<void> _publishFormCards(DateTime now) async {
@@ -286,11 +371,12 @@ class AppController extends ChangeNotifier {
               lineIndex: b.lineIndex,
             ),
       ];
-      final draft = _parser.parse(blocks: blocks, anchor: now);
+      final drafts = _parser.parseCandidates(blocks: blocks, anchor: now);
 
       _setStage(ImportStage.preparing);
       pendingDraft = DraftContext(
-        draft: draft,
+        draft: drafts.first,
+        additionalDrafts: drafts.skip(1).toList(growable: false),
         asset: asset,
         blocks: blocks,
         capturedAt: now,
@@ -347,11 +433,12 @@ class AppController extends ChangeNotifier {
     String? secretValue,
     Map<TemporalRole, DateTime> anchors = const {},
     List<ReminderPlan>? customPlans,
+    bool includePrimary = true,
+    Set<int> additionalDraftIndexes = const {},
     String? notes,
   }) async {
     final ctx = pendingDraft!;
     final now = clock.now();
-    final cardId = IdGen.newId();
 
     // 图片资产先落库（文件已写成功）；数据库失败清理文件。
     try {
@@ -364,46 +451,107 @@ class AppController extends ChangeNotifier {
       );
     }
 
-    final card = TemporalCard(
-      id: cardId,
-      title: title,
-      category: category,
-      status: CardStatus.draft,
-      sourceAssetId: ctx.asset?.id,
-      rawOcrText: ctx.draft.cleanedText,
-      location: location,
-      secretValue: secretValue,
-      eventStartAt: anchors[TemporalRole.eventStart],
-      eventEndAt: anchors[TemporalRole.eventEnd],
-      deadlineAt: anchors[TemporalRole.deadline],
-      expiresAt: anchors[TemporalRole.expiry],
-      capturedAt: ctx.capturedAt,
-      createdAt: now,
-      updatedAt: now,
-      overallConfidence: ctx.draft.confidenceScore,
-      isSensitive:
-          secretValue != null || category == CardCategory.temporarySecret,
-      notes: notes,
-    );
-
-    // 首次真正创建提醒时请求权限。
-    final plans = customPlans ?? reminderPolicy.defaultPlans(card, IdGen.newId);
-    var failures = 0;
-    if (plans.isNotEmpty) {
-      final granted = await reminderGateway.requestPermissionIfNeeded();
-      if (!granted) {
-        await cardService.confirmCard(card, plans, precomputedInstances: []);
-        failures = -1; // 约定：-1 表示权限被拒（卡片已保存，提醒未启用）
+    Future<(String, int)> saveCard({
+      required ParsedDraft draft,
+      required String cardTitle,
+      required CardCategory cardCategory,
+      String? cardLocation,
+      String? cardSecret,
+      required Map<TemporalRole, DateTime> cardAnchors,
+      List<ReminderPlan>? plansOverride,
+    }) async {
+      final id = IdGen.newId();
+      final card = TemporalCard(
+        id: id,
+        title: cardTitle,
+        category: cardCategory,
+        status: CardStatus.draft,
+        sourceAssetId: ctx.asset?.id,
+        rawOcrText: draft.cleanedText,
+        location: cardLocation,
+        secretValue: cardSecret,
+        eventStartAt: cardAnchors[TemporalRole.eventStart],
+        eventEndAt: cardAnchors[TemporalRole.eventEnd],
+        deadlineAt: cardAnchors[TemporalRole.deadline],
+        expiresAt: cardAnchors[TemporalRole.expiry],
+        capturedAt: ctx.capturedAt,
+        createdAt: now,
+        updatedAt: now,
+        overallConfidence: draft.confidenceScore,
+        isSensitive:
+            cardSecret != null || cardCategory == CardCategory.temporarySecret,
+        notes: notes,
+      );
+      final plans =
+          plansOverride ?? reminderPolicy.defaultPlans(card, IdGen.newId);
+      var cardFailures = 0;
+      if (plans.isNotEmpty) {
+        final granted = await reminderGateway.requestPermissionIfNeeded();
+        if (!granted) {
+          await cardService.confirmCard(card, plans, precomputedInstances: []);
+          cardFailures = -1;
+        } else {
+          cardFailures = await cardService.confirmCard(card, plans);
+        }
       } else {
-        failures = await cardService.confirmCard(card, plans);
+        cardFailures = await cardService.confirmCard(card, plans);
       }
-    } else {
-      failures = await cardService.confirmCard(card, plans);
+      if (ctx.blocks.isNotEmpty) {
+        await ocrBlocks.saveAll(id, [
+          for (final block in ctx.blocks)
+            OcrBlock(
+              id: IdGen.newId(),
+              text: block.text,
+              left: block.left,
+              top: block.top,
+              right: block.right,
+              bottom: block.bottom,
+              confidence: block.confidence,
+              lineIndex: block.lineIndex,
+            ),
+        ]);
+      }
+      return (id, cardFailures);
     }
 
-    if (ctx.blocks.isNotEmpty) {
-      await ocrBlocks.saveAll(cardId, ctx.blocks);
+    String? cardId;
+    var failures = 0;
+    if (includePrimary) {
+      final saved = await saveCard(
+        draft: ctx.draft,
+        cardTitle: title,
+        cardCategory: category,
+        cardLocation: location,
+        cardSecret: secretValue,
+        cardAnchors: anchors,
+        plansOverride: customPlans,
+      );
+      cardId = saved.$1;
+      failures = saved.$2;
     }
+    for (final index in additionalDraftIndexes.toList()..sort()) {
+      if (index <= 0 || index >= ctx.drafts.length) continue;
+      final draft = ctx.drafts[index];
+      final saved = await saveCard(
+        draft: draft,
+        cardTitle: draft.title,
+        cardCategory: draft.category,
+        cardLocation: draft.location,
+        cardSecret: draft.secretValue,
+        cardAnchors: draft.suggestedAnchors,
+      );
+      cardId ??= saved.$1;
+      if (failures != -1) {
+        failures = saved.$2 == -1 ? -1 : failures + saved.$2;
+      }
+    }
+    if (cardId == null) {
+      throw const AppFailure(
+        FailureCode.unknown,
+        debugDetail: 'no draft selected',
+      );
+    }
+
     pendingDraft = null;
     importStage = ImportStage.idle;
     await refresh();

@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../domain/enums/enums.dart';
 
-/// 视觉语言：深靛蓝主色（时间与可靠），状态色仅用于状态，
-/// 满足对比度要求，状态同时用图标/文字表达（不只靠颜色）。
+/// 截期视觉语言：纸张般的暖底色、墨色正文和少量朱砂强调。
+/// 状态色只表达时效，不用渐变与大面积高饱和色。
 class AppTheme {
   AppTheme._();
 
-  static const seed = Color(0xFF3A3D8F); // 深靛蓝
-
-  static const freshColor = Color(0xFF0E8A72); // 青绿
-  static const upcomingColor = Color(0xFFB26A00); // 琥珀
-  static const urgentColor = Color(0xFFC0392B); // 克制珊瑚红
-  static const expiredColor = Color(0xFF757575);
+  static const seed = Color(0xFFE05A47);
+  static const ink = Color(0xFF252422);
+  static const paper = Color(0xFFFFFBF6);
+  static const freshColor = Color(0xFF2D7D6C);
+  static const upcomingColor = Color(0xFFB5652A);
+  static const urgentColor = Color(0xFFC94335);
+  static const expiredColor = Color(0xFF77736E);
 
   static Color freshnessColor(Freshness f, Brightness b) {
     final dark = b == Brightness.dark;
@@ -45,35 +46,80 @@ class AppTheme {
   static ThemeData dark() => _base(Brightness.dark);
 
   static ThemeData _base(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
     final scheme = ColorScheme.fromSeed(
       seedColor: seed,
       brightness: brightness,
+      surface: dark ? const Color(0xFF1C1B1A) : paper,
+    );
+    final textTheme = Typography.material2021().black.copyWith(
+      headlineMedium: const TextStyle(
+        fontSize: 30,
+        height: 1.15,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.8,
+      ),
+      titleLarge: const TextStyle(
+        fontSize: 21,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+      ),
+      titleMedium: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      bodyMedium: const TextStyle(fontSize: 15, height: 1.45),
     );
     return ThemeData(
       colorScheme: scheme,
+      scaffoldBackgroundColor: scheme.surface,
+      textTheme: dark
+          ? Typography.material2021().white.merge(textTheme)
+          : textTheme,
       useMaterial3: true,
       cardTheme: CardThemeData(
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        color: scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+        color: dark ? scheme.surfaceContainerLow : Colors.white,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       ),
       appBarTheme: AppBarTheme(
         centerTitle: false,
-        backgroundColor: scheme.surface,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          color: dark ? Colors.white : ink,
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: dark ? scheme.surfaceContainer : Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: scheme.outlineVariant),
         ),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        side: BorderSide.none,
       ),
+      dividerTheme: DividerThemeData(color: scheme.outlineVariant),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
       ),

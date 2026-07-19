@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
+import '../../app/theme.dart';
 import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
 import '../import/import_flow.dart';
@@ -46,43 +47,120 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final cards = _filtered;
+    final now = widget.controller.clock.now();
+    final urgentCount = widget.controller.activeCards
+        .where(
+          (card) =>
+              widget.controller.freshness.evaluate(card, now) ==
+              Freshness.urgent,
+        )
+        .length;
     return CustomScrollView(
       slivers: [
         SliverAppBar(
+          toolbarHeight: 82,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('截期 FreshCue'),
+              Text('截期', style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 3),
               Text(
-                '截图里的时间，交给我盯着',
-                style: Theme.of(context).textTheme.bodySmall,
+                urgentCount == 0 ? '今天没有紧急事项' : '$urgentCount 件事需要尽快处理',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: urgentCount == 0
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : AppTheme.urgentColor,
+                ),
               ),
             ],
           ),
-          toolbarHeight: 72,
           floating: true,
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: FilledButton.icon(
-              icon: const Icon(Icons.add_photo_alternate_outlined),
-              label: const Text('导入截图'),
-              onPressed: () => startImportFlow(context, widget.controller),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '收下截图，记住时间',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '图片只在本机识别，确认后再创建提醒。',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ImportAction(
+                          icon: Icons.add_a_photo_outlined,
+                          label: '拍一张',
+                          primary: true,
+                          onTap: () => startImportFlow(
+                            context,
+                            widget.controller,
+                            initialChoice: 'camera',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ImportAction(
+                          icon: Icons.photo_library_outlined,
+                          label: '选图片',
+                          onTap: () => startImportFlow(
+                            context,
+                            widget.controller,
+                            initialChoice: 'gallery',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ImportAction(
+                          icon: Icons.more_horiz,
+                          label: '更多',
+                          onTap: () =>
+                              startImportFlow(context, widget.controller),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<HomeFilter>(
-              segments: const [
-                ButtonSegment(value: HomeFilter.all, label: Text('全部')),
-                ButtonSegment(value: HomeFilter.expiring, label: Text('即将到期')),
-                ButtonSegment(value: HomeFilter.undated, label: Text('无日期')),
+          child: SizedBox(
+            height: 42,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final entry in const [
+                  (HomeFilter.all, '全部'),
+                  (HomeFilter.expiring, '快到期'),
+                  (HomeFilter.undated, '待补时间'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(entry.$2),
+                      selected: filter == entry.$1,
+                      onSelected: (_) => setState(() => filter = entry.$1),
+                    ),
+                  ),
               ],
-              selected: {filter},
-              onSelectionChanged: (s) => setState(() => filter = s.first),
             ),
           ),
         ),
@@ -105,6 +183,56 @@ class _HomePageState extends State<HomePage> {
       ],
     );
   }
+}
+
+class _ImportAction extends StatelessWidget {
+  const _ImportAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.primary = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: primary
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+    borderRadius: BorderRadius.circular(13),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(13),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 21,
+              color: primary
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: primary
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {

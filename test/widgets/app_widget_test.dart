@@ -61,7 +61,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('还没有时效卡片'), findsOneWidget);
     expect(find.textContaining('系统分享'), findsOneWidget);
-    expect(find.text('导入截图'), findsOneWidget);
+    expect(find.text('拍一张'), findsOneWidget);
   });
 
   testWidgets('首页有数据状态显示卡片与时间语义', (tester) async {
@@ -273,6 +273,18 @@ void main() {
 class _FailingOcrGateway implements OcrGateway {
   @override
   Future<bool> isAvailable() async => false;
+
+  @override
+  Future<OcrModelStatus> getModelStatus() async =>
+      const OcrModelStatus.unavailable();
+
+  @override
+  Future<OcrModelStatus> downloadModels(OcrDownloadSource source) async =>
+      const OcrModelStatus.unavailable();
+
+  @override
+  Future<OcrModelStatus> deleteModels() async =>
+      const OcrModelStatus.unavailable();
 
   @override
   Future<OcrResult> recognizeImage({

@@ -16,7 +16,9 @@ import {
   StreamHandler,
   MethodResult,
 } from '@ohos/flutter_ohos';
-import { systemShare } from '@kit.ShareKit';
+import { harmonyShare, systemShare } from '@kit.ShareKit';
+import { camera, cameraPicker } from '@kit.CameraKit';
+import { common } from '@kit.AbilityKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -37,6 +39,12 @@ export class SharePlugin implements FlutterPlugin, MethodCallHandler, StreamHand
   private sink: EventSink | null = null;
   private pending: PendingShare | null = null;
   private readonly consumedIds = new Set<string>();
+  private abilityContext: common.UIAbilityContext | null = null;
+  private preparedData: systemShare.SharedData | null = null;
+  private readonly knockShareCallback =
+    (target: harmonyShare.SharableTarget): void => { this.sharePrepared(target); };
+  private readonly gesturesShareCallback =
+    (target: harmonyShare.SharableTarget): void => { this.sharePrepared(target); };
 
   // 常见图片 UTD 叶子类型（general.image 的子类型）。
   private static readonly imageUtds = new Set<string>([
@@ -44,6 +52,10 @@ export class SharePlugin implements FlutterPlugin, MethodCallHandler, StreamHand
     'general.heic', 'general.webp', 'general.bmp', 'general.gif',
     'general.tiff', 'general.svg', 'general.raw-image',
   ]);
+
+  setAbilityContext(context: common.UIAbilityContext): void {
+    this.abilityContext = context;
+  }
 
   getUniqueClassName(): string {
     return 'SharePlugin';
@@ -55,9 +67,20 @@ export class SharePlugin implements FlutterPlugin, MethodCallHandler, StreamHand
     this.eventChannel = new EventChannel(binding.getBinaryMessenger(), 'freshcue/share/events');
     this.eventChannel.setStreamHandler(this);
     CapabilityRegistry.mark('share', true, true, '');
+    if (canIUse('SystemCapability.Collaboration.HarmonyShare')) {
+      harmonyShare.on('knockShare', this.knockShareCallback);
+      harmonyShare.on('gesturesShare', this.gesturesShareCallback);
+      CapabilityRegistry.mark('harmonyShare', true, true, '');
+    } else {
+      CapabilityRegistry.mark('harmonyShare', true, false, 'device_unsupported');
+    }
   }
 
   onDetachedFromEngine(_binding: FlutterPluginBinding): void {
+    if (canIUse('SystemCapability.Collaboration.HarmonyShare')) {
+      harmonyShare.off('knockShare', this.knockShareCallback);
+      harmonyShare.off('gesturesShare', this.gesturesShareCallback);
+    }
     this.channel?.setMethodCallHandler(null);
     this.channel = null;
     this.eventChannel?.setStreamHandler(null);
@@ -171,6 +194,12 @@ export class SharePlugin implements FlutterPlugin, MethodCallHandler, StreamHand
       case 'pickImage':
         this.pickImage(result);
         break;
+      case 'capturePhoto':
+        this.capturePhoto(result);
+        break;
+      case 'shareText':
+        this.shareText(call, result);
+        break;
       default:
         result.notImplemented();
     }
@@ -199,5 +228,70 @@ export class SharePlugin implements FlutterPlugin, MethodCallHandler, StreamHand
       // 用户取消选择在部分实现下也会抛异常。
       result.error('cancelled', `code=${err.code}`, null);
     }
+  }
+
+  private async capturePhoto(result: MethodResult): Promise<void> {
+    if (this.abilityContext === null) {
+      result.error('camera_unavailable', 'ability context unavailable', null);
+      return;
+    }
+    try {
+      const profile: cameraPicker.PickerProfile = {
+        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK,
+      };
+      const captured = await cameraPicker.pick(
+        this.abilityContext,
+        [cameraPicker.PickerMediaType.PHOTO],
+        profile,
+      );
+      if (captured.resultCode !== 0 || captured.resultUri.length === 0) {
+        result.error('cancelled', 'user cancelled', null);
+        return;
+      }
+      const item = this.readUri(captured.resultUri, 0);
+      if (item === null) {
+        result.error('uri_expired', 'read failed', null);
+        return;
+      }
+      item.displayName = '随手拍.jpg';
+      result.success(this.toMap(item));
+    } catch (e) {
+      const err = e as BusinessError;
+      result.error('camera_failed', `code=${err.code}`, null);
+    }
+  }
+
+  private createTextData(title: string, text: string): systemShare.SharedData {
+    return new systemShare.SharedData({
+      utd: 'general.plain-text',
+      title: title,
+      content: text,
+    });
+  }
+
+  private async shareText(call: MethodCall, result: MethodResult): Promise<void> {
+    if (this.abilityContext === null) {
+      result.error('share_failed', 'ability context unavailable', null);
+      return;
+    }
+    try {
+      const title = call.argument('title') as string;
+      const text = call.argument('text') as string;
+      this.preparedData = this.createTextData(title, text);
+      const controller = new systemShare.ShareController(this.preparedData);
+      await controller.show(this.abilityContext, {});
+      result.success(null);
+    } catch (e) {
+      const err = e as BusinessError;
+      result.error('share_failed', `code=${err.code}`, null);
+    }
+  }
+
+  private async sharePrepared(target: harmonyShare.SharableTarget): Promise<void> {
+    if (this.preparedData === null) {
+      await target.clarifyNonShare({ message: '请先在截期中打开并分享一张卡片' });
+      return;
+    }
+    await target.share(this.preparedData);
   }
 }

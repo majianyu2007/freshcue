@@ -63,7 +63,7 @@ enum TemporalRole {
 }
 
 /// 图片导入来源。
-enum ImportSource { share, gallery, demo }
+enum ImportSource { share, gallery, camera, demo }
 
 /// 提醒实例状态。
 enum ReminderStatus { scheduled, fired, snoozed, cancelled, failed }

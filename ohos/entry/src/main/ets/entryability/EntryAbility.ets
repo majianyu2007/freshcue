@@ -18,6 +18,7 @@ export default class EntryAbility extends FlutterAbility {
     GeneratedPluginRegistrant.registerWith(flutterEngine)
     flutterEngine.getPlugins()?.add(new CapabilitiesPlugin())
     flutterEngine.getPlugins()?.add(new OcrPlugin())
+    this.sharePlugin.setAbilityContext(this.context)
     flutterEngine.getPlugins()?.add(this.sharePlugin)
     flutterEngine.getPlugins()?.add(this.reminderPlugin)
     flutterEngine.getPlugins()?.add(new FormPlugin())

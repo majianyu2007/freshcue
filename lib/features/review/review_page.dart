@@ -10,6 +10,7 @@ import '../../domain/entities/reminder.dart';
 import '../../domain/entities/source_asset.dart';
 import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
+import '../../domain/parser/screenshot_parser.dart';
 import '../../platform/gateways.dart';
 
 /// 确认页：原图证据 + 高亮 + 字段编辑 + 提醒预览。
@@ -36,6 +37,7 @@ class _ReviewPageState extends State<ReviewPage> {
   /// 当前选中候选（用于原图高亮）。
   String? highlightedCandidateId;
   bool _saving = false;
+  late Set<int> selectedDraftIndexes;
 
   @override
   void initState() {
@@ -46,6 +48,7 @@ class _ReviewPageState extends State<ReviewPage> {
     secretCtl = TextEditingController(text: ctx.draft.secretValue ?? '');
     category = ctx.draft.category;
     anchors = Map.of(ctx.draft.suggestedAnchors);
+    selectedDraftIndexes = {for (var i = 0; i < ctx.drafts.length; i++) i};
   }
 
   @override
@@ -135,6 +138,37 @@ class _ReviewPageState extends State<ReviewPage> {
               text: w,
               color: Theme.of(context).colorScheme.primary,
             ),
+          if (ctx.drafts.length > 1) ...[
+            _Notice(
+              icon: Icons.auto_awesome_motion_outlined,
+              text: '识别到 ${ctx.drafts.length} 条时效信息，请取消不需要保存的条目。',
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            Card(
+              child: Column(
+                children: [
+                  for (var i = 0; i < ctx.drafts.length; i++)
+                    CheckboxListTile(
+                      value: selectedDraftIndexes.contains(i),
+                      title: Text(ctx.drafts[i].title),
+                      subtitle: Text(
+                        i == 0
+                            ? '${ctx.drafts[i].category.label} · 下方可编辑'
+                            : _draftSummary(ctx.drafts[i]),
+                      ),
+                      onChanged: (selected) => setState(() {
+                        if (selected == true) {
+                          selectedDraftIndexes.add(i);
+                        } else {
+                          selectedDraftIndexes.remove(i);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           _EvidenceImage(
             asset: ctx.asset,
             blocks: ctx.blocks,
@@ -234,12 +268,23 @@ class _ReviewPageState extends State<ReviewPage> {
                     dimension: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('确认并创建卡片'),
+                : Text(
+                    ctx.drafts.length > 1
+                        ? '确认并创建 ${selectedDraftIndexes.length} 张卡片'
+                        : '确认并创建卡片',
+                  ),
           ),
           const SizedBox(height: 32),
         ],
       ),
     );
+  }
+
+  String _draftSummary(ParsedDraft draft) {
+    final anchors = draft.suggestedAnchors;
+    if (anchors.isEmpty) return draft.category.label;
+    final first = anchors.entries.first;
+    return '${draft.category.label} · ${first.key.label} ${formatDateTime(first.value)}';
   }
 
   Set<String> _highlightIds() {
@@ -362,7 +407,13 @@ class _ReviewPageState extends State<ReviewPage> {
 
   Future<void> _save() async {
     if (_saving) return;
-    if (titleCtl.text.trim().isEmpty) {
+    if (selectedDraftIndexes.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请至少保留一条信息')));
+      return;
+    }
+    if (selectedDraftIndexes.contains(0) && titleCtl.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('请填写标题')));
@@ -380,6 +431,10 @@ class _ReviewPageState extends State<ReviewPage> {
             ? null
             : secretCtl.text.trim(),
         anchors: anchors,
+        includePrimary: selectedDraftIndexes.contains(0),
+        additionalDraftIndexes: selectedDraftIndexes
+            .where((i) => i > 0)
+            .toSet(),
       );
       if (!mounted) return;
       final msg = switch (failures) {

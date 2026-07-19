@@ -253,6 +253,49 @@ class ScreenshotParser {
     );
   }
 
+  /// 将同一张长截图中垂直分隔的多条时效信息拆成独立草稿。
+  ///
+  /// OCR 坐标已归一化为 0~1；明显留白用于判定卡片边界。无法可靠拆分时
+  /// 返回整图草稿，避免把同一活动的多个时间角色误拆成多张卡片。
+  List<ParsedDraft> parseCandidates({
+    required List<OcrBlock> blocks,
+    required DateTime anchor,
+  }) {
+    if (blocks.length < 4) {
+      return [parse(blocks: blocks, anchor: anchor)];
+    }
+    final spatial = List<OcrBlock>.of(blocks)
+      ..sort((a, b) => a.top.compareTo(b.top));
+    final groups = <List<OcrBlock>>[];
+    var current = <OcrBlock>[];
+    var bottom = spatial.first.bottom;
+    for (final block in spatial) {
+      if (current.isNotEmpty && block.top - bottom >= 0.075) {
+        groups.add(current);
+        current = <OcrBlock>[];
+      }
+      current.add(block);
+      if (block.bottom > bottom || current.length == 1) bottom = block.bottom;
+    }
+    if (current.isNotEmpty) groups.add(current);
+
+    final meaningful = groups
+        .where(
+          (group) =>
+              group.length >= 2 &&
+              _spans
+                  .extract(group.map((b) => _clean(b.text)).join('\n'))
+                  .isNotEmpty,
+        )
+        .toList();
+    if (meaningful.length < 2) {
+      return [parse(blocks: blocks, anchor: anchor)];
+    }
+    return [
+      for (final group in meaningful) parse(blocks: group, anchor: anchor),
+    ];
+  }
+
   /// 便捷入口：无坐标的纯文本（手动输入降级）。
   ParsedDraft parseText(String text, DateTime anchor) {
     final lines = text.split('\n');

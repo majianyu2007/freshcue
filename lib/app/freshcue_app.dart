@@ -7,19 +7,16 @@ import '../features/home/card_tile.dart';
 import '../features/home/home_page.dart';
 import '../features/import/import_flow.dart';
 import '../features/settings/settings_page.dart';
+import '../platform/gateways.dart';
 import 'app_controller.dart';
 import 'routes.dart';
 import 'theme.dart';
 
 class FreshCueApp extends StatelessWidget {
-  const FreshCueApp({
-    super.key,
-    required this.controller,
-    this.showOnboarding = true,
-  });
+  const FreshCueApp({super.key, required this.controller, this.showOnboarding});
 
   final AppController controller;
-  final bool showOnboarding;
+  final bool? showOnboarding;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -33,7 +30,10 @@ class FreshCueApp extends StatelessWidget {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
-    home: AppShell(controller: controller, showOnboarding: showOnboarding),
+    home: AppShell(
+      controller: controller,
+      showOnboarding: showOnboarding ?? !controller.onboardingComplete,
+    ),
   );
 }
 
@@ -123,6 +123,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     if (!onboardingDone) {
       return OnboardingPage(
+        controller: widget.controller,
         onDone: () => setState(() => onboardingDone = true),
       );
     }
@@ -189,9 +190,15 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// 首次启动引导（3 屏，不请求任何权限）。
+/// 首次启动引导：解释核心能力，在用户理解用途后申请通知权限。
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key, required this.onDone});
+  const OnboardingPage({
+    super.key,
+    required this.controller,
+    required this.onDone,
+  });
+
+  final AppController controller;
   final VoidCallback onDone;
 
   @override
@@ -201,12 +208,124 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pager = PageController();
   int page = 0;
+  bool finishing = false;
 
   static const _pages = [
-    (Icons.ios_share, '分享截图', '在任何应用里看到含时间的截图，\n通过系统分享发送给 FreshCue。'),
-    (Icons.psychology_outlined, '端上识别', '文字与时间在你的设备上识别，\n截图和内容不上传。'),
-    (Icons.notifications_active_outlined, '到点提醒', '系统按时提醒你，\n过期的信息自动收进过期箱。'),
+    (Icons.add_a_photo_outlined, '拍下或导入', '拍照、从图库选择，或从其他应用分享截图。'),
+    (Icons.document_scanner_outlined, '在本机识别', '图片和识别结果只保存在你的设备上。'),
+    (Icons.notifications_active_outlined, '按时提醒', '允许通知后，截期会在关键时间到来前提醒你。'),
   ];
+
+  Future<void> _finish() async {
+    if (finishing) return;
+    setState(() => finishing = true);
+    await widget.controller.requestNotificationPermission();
+    await widget.controller.completeOnboarding();
+    if (mounted) widget.onDone();
+  }
+
+  Future<void> _downloadOcr() async {
+    final source = await showModalBottomSheet<OcrDownloadSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text('下载离线识别组件'),
+              subtitle: Text('请选择适合当前网络的线路'),
+            ),
+            for (final option in const [
+              (OcrDownloadSource.github, 'GitHub', '直接下载'),
+              (OcrDownloadSource.ghproxy, '国内加速', 'ghproxy.net'),
+              (OcrDownloadSource.fastly, '备用加速', 'ghfast.top'),
+            ])
+              ListTile(
+                title: Text(option.$2),
+                subtitle: Text(option.$3),
+                onTap: () => Navigator.pop(context, option.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    try {
+      await widget.controller.downloadOcrModels(source);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('下载失败，请换一条线路重试')));
+      }
+    }
+  }
+
+  Widget _capabilitySummary(BuildContext context) {
+    final caps = widget.controller.capabilities;
+    final entries = [
+      ('本地存储', caps.kit('database').available),
+      ('图片导入与分享', caps.kit('share').available),
+      ('系统提醒', caps.kit('reminders').available),
+      ('文字识别', widget.controller.ocrModelStatus.ready),
+    ];
+    return Card(
+      margin: const EdgeInsets.only(top: 28),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            for (final entry in entries)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  children: [
+                    Icon(
+                      entry.$2 ? Icons.check_circle : Icons.info_outline,
+                      size: 20,
+                      color: entry.$2
+                          ? Colors.green
+                          : Theme.of(context).colorScheme.secondary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(entry.$1)),
+                    Text(entry.$2 ? '可用' : '需要设置'),
+                  ],
+                ),
+              ),
+            if (!widget.controller.ocrModelStatus.ready) ...[
+              const Divider(height: 24),
+              const Text('这台设备需要安装离线识别组件（约 10.2 MB）。'),
+              const SizedBox(height: 10),
+              if (widget.controller.downloadingOcrModels) ...[
+                LinearProgressIndicator(
+                  value: widget.controller.ocrModelStatus.downloadProgress,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '已下载 ${(widget.controller.ocrModelStatus.downloadProgress * 100).round()}%',
+                ),
+                const SizedBox(height: 10),
+              ],
+              FilledButton.icon(
+                onPressed: widget.controller.downloadingOcrModels
+                    ? null
+                    : _downloadOcr,
+                icon: widget.controller.downloadingOcrModels
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_outlined),
+                label: const Text('选择下载线路'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -237,6 +356,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(body, textAlign: TextAlign.center),
+                      if (i == _pages.length - 1) _capabilitySummary(context),
                     ],
                   ),
                 );
@@ -251,8 +371,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeOut,
                     )
-                  : widget.onDone,
-              child: Text(page < _pages.length - 1 ? '下一步' : '开始使用'),
+                  : _finish,
+              child: finishing
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(page < _pages.length - 1 ? '下一步' : '允许通知并开始'),
             ),
           ),
         ],

@@ -39,6 +39,55 @@ class ChannelOcrGateway implements OcrGateway {
   }
 
   @override
+  Future<OcrModelStatus> getModelStatus() async {
+    try {
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'getModelStatus',
+      );
+      return _modelStatus(raw);
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    } on MissingPluginException {
+      return const OcrModelStatus.unavailable();
+    }
+  }
+
+  @override
+  Future<OcrModelStatus> downloadModels(OcrDownloadSource source) async {
+    try {
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'downloadModels',
+        {'source': source.name},
+      );
+      return _modelStatus(raw);
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    }
+  }
+
+  @override
+  Future<OcrModelStatus> deleteModels() async {
+    try {
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'deleteModels',
+      );
+      return _modelStatus(raw);
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    }
+  }
+
+  OcrModelStatus _modelStatus(Map<Object?, Object?>? raw) => OcrModelStatus(
+    coreVisionSupported: raw?['coreVisionSupported'] as bool? ?? false,
+    installed: raw?['installed'] as bool? ?? false,
+    version: raw?['version'] as String? ?? 'ocr-v1',
+    downloadBytes: raw?['downloadBytes'] as int? ?? 0,
+    downloadedBytes: raw?['downloadedBytes'] as int? ?? 0,
+    downloading: raw?['downloading'] as bool? ?? false,
+    provider: OcrProvider.fromWire(raw?['provider']),
+  );
+
+  @override
   Future<OcrResult> recognizeImage({
     required String sandboxPath,
     List<String> languageHints = const ['zh-Hans'],
@@ -111,6 +160,19 @@ class ChannelShareGateway implements ShareGateway {
   );
 
   @override
+  Future<SharedItem?> capturePhoto() async {
+    try {
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'capturePhoto',
+      );
+      return raw == null ? null : _fromMap(raw);
+    } on PlatformException catch (e) {
+      if (e.code == 'cancelled') return null;
+      throw _mapPlatformError(e);
+    }
+  }
+
+  @override
   Future<SharedItem?> pickImage() async {
     try {
       final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
@@ -122,6 +184,18 @@ class ChannelShareGateway implements ShareGateway {
       throw _mapPlatformError(e);
     } on MissingPluginException {
       throw const AppFailure(FailureCode.unknown, debugDetail: 'no plugin');
+    }
+  }
+
+  @override
+  Future<void> shareText({required String title, required String text}) async {
+    try {
+      await _channel.invokeMethod<void>('shareText', {
+        'title': title,
+        'text': text,
+      });
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
     }
   }
 
@@ -209,6 +283,39 @@ class ChannelReminderGateway implements ReminderGateway {
       return const [];
     } on MissingPluginException {
       return const [];
+    }
+  }
+
+  @override
+  Future<void> publishInstantNotification({
+    required String title,
+    required String body,
+  }) async {
+    try {
+      await _channel.invokeMethod<void>('publishInstantNotification', {
+        'title': title,
+        'body': body,
+      });
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    }
+  }
+
+  @override
+  Future<void> syncLiveActivity(LiveActivitySnapshot? snapshot) async {
+    try {
+      await _channel.invokeMethod<void>('syncLiveActivity', {
+        if (snapshot != null) ...{
+          'cardId': snapshot.cardId,
+          'title': snapshot.title,
+          'timeLabel': snapshot.timeLabel,
+          'endsAtMs': snapshot.endsAt.millisecondsSinceEpoch,
+        },
+      });
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    } on MissingPluginException {
+      // 旧系统或非 OHOS 平台不提供实况窗。
     }
   }
 

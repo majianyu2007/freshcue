@@ -61,6 +61,11 @@ class _CardDetailPageState extends State<CardDetailPage> {
       appBar: AppBar(
         title: Text(card.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
+          IconButton(
+            tooltip: '分享',
+            icon: const Icon(Icons.ios_share_outlined),
+            onPressed: () => _shareCard(card),
+          ),
           PopupMenuButton<String>(
             onSelected: (v) => _onMenu(v, card),
             itemBuilder: (context) => [
@@ -173,6 +178,28 @@ class _CardDetailPageState extends State<CardDetailPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _shareCard(TemporalCard card) async {
+    final lines = <String>[
+      card.title,
+      for (final time in card.keyTimes)
+        '${time.$1.label}：${formatDateTime(time.$2)}',
+      if (card.location != null) '地点：${card.location}',
+      '来自截期',
+    ];
+    try {
+      await widget.controller.share.shareText(
+        title: card.title,
+        text: lines.join('\n'),
+      );
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('暂时无法打开系统分享')));
+      }
+    }
   }
 
   Widget _sourceImage(TemporalCard card) {

@@ -19,6 +19,22 @@ class MockOcrGateway implements OcrGateway {
   Future<bool> isAvailable() async => true;
 
   @override
+  Future<OcrModelStatus> getModelStatus() async => const OcrModelStatus(
+    coreVisionSupported: true,
+    installed: false,
+    version: 'mock',
+    downloadBytes: 0,
+    provider: OcrProvider.mock,
+  );
+
+  @override
+  Future<OcrModelStatus> downloadModels(OcrDownloadSource source) =>
+      getModelStatus();
+
+  @override
+  Future<OcrModelStatus> deleteModels() => getModelStatus();
+
+  @override
   Future<OcrResult> recognizeImage({
     required String sandboxPath,
     List<String> languageHints = const ['zh-Hans'],
@@ -74,6 +90,12 @@ class MockShareGateway implements ShareGateway {
 
   @override
   Future<SharedItem?> pickImage() async => null; // UI 层用 demo 图代替
+
+  @override
+  Future<SharedItem?> capturePhoto() async => null;
+
+  @override
+  Future<void> shareText({required String title, required String text}) async {}
 }
 
 class MockReminderGateway implements ReminderGateway {
@@ -85,6 +107,8 @@ class MockReminderGateway implements ReminderGateway {
       StreamController.broadcast();
   int _nextId = 1;
   bool permissionGranted = true;
+  (String, String)? lastInstantNotification;
+  LiveActivitySnapshot? liveActivity;
 
   /// 测试注入通知行为。
   void emitAction(ReminderActionEvent e) => _actions.add(e);
@@ -109,6 +133,19 @@ class MockReminderGateway implements ReminderGateway {
 
   @override
   Future<List<int>> getScheduledReminderIds() async => scheduled.keys.toList();
+
+  @override
+  Future<void> publishInstantNotification({
+    required String title,
+    required String body,
+  }) async {
+    lastInstantNotification = (title, body);
+  }
+
+  @override
+  Future<void> syncLiveActivity(LiveActivitySnapshot? snapshot) async {
+    liveActivity = snapshot;
+  }
 
   @override
   Stream<ReminderActionEvent> get actions => _actions.stream;

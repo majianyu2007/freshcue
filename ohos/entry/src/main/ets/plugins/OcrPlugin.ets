@@ -1,5 +1,5 @@
-// OCR bridge. Core Vision is preferred; bundled PP-OCRv5/ncnn is the
-// distributable offline fallback. Channel: freshcue/ocr.
+// OCR bridge. Core Vision is preferred. PP-OCRv5 model data is downloaded
+// only when the device lacks Core Vision. Channel: freshcue/ocr.
 import {
   FlutterPlugin,
   FlutterPluginBinding,
@@ -11,7 +11,8 @@ import {
 import { textRecognition } from '@kit.CoreVisionKit';
 import { image } from '@kit.ImageKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { resourceManager } from '@kit.LocalizationKit';
+import { http } from '@kit.NetworkKit';
+import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import util from '@ohos.util';
 import offlineOcr from 'libentry.so';
@@ -26,33 +27,68 @@ interface NativeOcrBlock {
   lineIndex: number;
 }
 
+interface ModelFile {
+  name: string;
+  size: number;
+  sha256: string;
+}
+
+const MODEL_VERSION = 'ocr-v1';
+const RELEASE_ROOT =
+  'https://raw.githubusercontent.com/nihui/ncnn-android-ppocrv5/master/app/src/main/assets';
+const MODEL_FILES: Array<ModelFile> = [
+  {
+    name: 'PP_OCRv5_mobile_det.ncnn.param',
+    size: 24821,
+    sha256: '358f459680ae0e7a73e477469e529ce116f68c629019ec7a0b6457d2d9117934',
+  },
+  {
+    name: 'PP_OCRv5_mobile_det.ncnn.bin',
+    size: 2357216,
+    sha256: '857a96bc963725105b78a178dfcc3c0c3db1a7b9eef32244367b2cb105ccf60b',
+  },
+  {
+    name: 'PP_OCRv5_mobile_rec.ncnn.param',
+    size: 20031,
+    sha256: 'f52a6586ac3338d8c350db0c9f3c55ff2ecd3763327f9bc7f0efc091f8a63e74',
+  },
+  {
+    name: 'PP_OCRv5_mobile_rec.ncnn.bin',
+    size: 8242276,
+    sha256: '49d9907a55ba20fa6637f9f788f66ab00793bc8ce57a733a09dbe86b9a2e3db0',
+  },
+];
+
 export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
   private channel: MethodChannel | null = null;
-  private resources: resourceManager.ResourceManager | null = null;
   private offlineLoad: Promise<boolean> | null = null;
+  private filesDir: string = '';
+  private downloadedBytes: number = 0;
+  private downloading: boolean = false;
 
   getUniqueClassName(): string {
     return 'OcrPlugin';
   }
 
   onAttachedToEngine(binding: FlutterPluginBinding): void {
-    this.resources = binding.getApplicationContext().resourceManager;
+    this.filesDir = binding.getApplicationContext().filesDir;
     this.channel = new MethodChannel(binding.getBinaryMessenger(), 'freshcue/ocr');
     this.channel.setMethodCallHandler(this);
     const coreAvailable = canIUse('SystemCapability.AI.OCR.TextRecognition');
-    CapabilityRegistry.mark('ocr', true, true, '', coreAvailable ? 'coreVision' : 'offline');
-    if (!coreAvailable) {
-      this.ensureOfflineReady().then((ready: boolean) => {
-        CapabilityRegistry.mark('ocr', true, ready,
-          ready ? '' : 'offline_model_failed', ready ? 'offline' : 'none');
-      });
-    }
+    const offlineReady = this.modelsInstalled();
+    CapabilityRegistry.mark(
+      'ocr',
+      true,
+      coreAvailable || offlineReady,
+      coreAvailable || offlineReady ? '' : 'model_download_required',
+      coreAvailable ? 'coreVision' : offlineReady ? 'offline' : 'none',
+    );
   }
 
   onDetachedFromEngine(_binding: FlutterPluginBinding): void {
     this.channel?.setMethodCallHandler(null);
     this.channel = null;
-    this.resources = null;
+    this.filesDir = '';
   }
 
   onMethodCall(call: MethodCall, result: MethodResult): void {
@@ -62,6 +98,15 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
         break;
       case 'recognizeImage':
         this.recognize(call, result);
+        break;
+      case 'getModelStatus':
+        result.success(this.modelStatus());
+        break;
+      case 'downloadModels':
+        this.downloadModels(call, result);
+        break;
+      case 'deleteModels':
+        this.deleteModels(result);
         break;
       default:
         result.notImplemented();
@@ -88,26 +133,172 @@ export class OcrPlugin implements FlutterPlugin, MethodCallHandler {
   }
 
   private async loadOfflineModel(): Promise<boolean> {
-    if (this.resources === null) {
+    if (!this.modelsInstalled()) {
       return false;
     }
     try {
-      const detParam = await this.resources.getRawFileContent(
-        'ocr/PP_OCRv5_mobile_det.ncnn.param');
-      const detModel = await this.resources.getRawFileContent(
-        'ocr/PP_OCRv5_mobile_det.ncnn.bin');
-      const recParam = await this.resources.getRawFileContent(
-        'ocr/PP_OCRv5_mobile_rec.ncnn.param');
-      const recModel = await this.resources.getRawFileContent(
-        'ocr/PP_OCRv5_mobile_rec.ncnn.bin');
-      return offlineOcr.loadModel(
-        detParam.buffer as ArrayBuffer,
-        detModel.buffer as ArrayBuffer,
-        recParam.buffer as ArrayBuffer,
-        recModel.buffer as ArrayBuffer);
+      const buffers = MODEL_FILES.map((item: ModelFile): ArrayBuffer =>
+        this.readFile(`${this.modelDir()}/${item.name}`));
+      return offlineOcr.loadModel(buffers[0], buffers[1], buffers[2], buffers[3]);
     } catch (_e) {
       return false;
     }
+  }
+
+  private modelDir(): string {
+    return `${this.filesDir}/ocr/${MODEL_VERSION}`;
+  }
+
+  private modelsInstalled(): boolean {
+    if (this.filesDir.length === 0) {
+      return false;
+    }
+    try {
+      for (const item of MODEL_FILES) {
+        const stat = fs.statSync(`${this.modelDir()}/${item.name}`);
+        if (stat.size !== item.size) {
+          return false;
+        }
+      }
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  private modelStatus(): Record<string, Object> {
+    const coreVision = canIUse('SystemCapability.AI.OCR.TextRecognition');
+    return {
+      'coreVisionSupported': coreVision,
+      'installed': this.modelsInstalled(),
+      'version': MODEL_VERSION,
+      'downloadBytes': MODEL_FILES.reduce(
+        (sum: number, item: ModelFile): number => sum + item.size, 0),
+      'downloadedBytes': this.downloadedBytes,
+      'downloading': this.downloading,
+      'provider': coreVision ? 'coreVision' :
+        this.modelsInstalled() ? 'offline' : 'none',
+    };
+  }
+
+  private sourceRoot(source: string): string {
+    switch (source) {
+      case 'ghproxy':
+        return `https://ghproxy.net/${RELEASE_ROOT}`;
+      case 'fastly':
+        return `https://ghfast.top/${RELEASE_ROOT}`;
+      default:
+        return RELEASE_ROOT;
+    }
+  }
+
+  private async downloadModels(call: MethodCall, result: MethodResult): Promise<void> {
+    const source = call.argument('source') as string;
+    const dir = this.modelDir();
+    this.downloadedBytes = 0;
+    this.downloading = true;
+    try {
+      fs.mkdirSync(dir, true);
+      const root = this.sourceRoot(source);
+      for (const item of MODEL_FILES) {
+        const bytes = await this.download(`${root}/${item.name}`);
+        if (bytes.byteLength !== item.size ||
+            await OcrPlugin.sha256(bytes) !== item.sha256) {
+          throw new Error(`checksum_failed:${item.name}`);
+        }
+        this.downloadedBytes += bytes.byteLength;
+        const temp = `${dir}/${item.name}.download`;
+        this.writeFile(temp, bytes);
+      }
+      for (const item of MODEL_FILES) {
+        const target = `${dir}/${item.name}`;
+        try { fs.unlinkSync(target); } catch (_e) { /* absent */ }
+        fs.renameSync(`${target}.download`, target);
+      }
+      this.offlineLoad = null;
+      const ready = await this.ensureOfflineReady();
+      CapabilityRegistry.mark('ocr', true, ready,
+        ready ? '' : 'offline_model_failed', ready ? 'offline' : 'none');
+      if (!ready) {
+        throw new Error('offline_model_failed');
+      }
+      result.success(this.modelStatus());
+    } catch (e) {
+      for (const item of MODEL_FILES) {
+        try {
+          fs.unlinkSync(`${dir}/${item.name}.download`);
+        } catch (_e) { /* absent */ }
+      }
+      const message = e instanceof Error ? e.message : 'download_failed';
+      result.error('model_download_failed', message, null);
+    } finally {
+      this.downloading = false;
+    }
+  }
+
+  private deleteModels(result: MethodResult): void {
+    try {
+      for (const item of MODEL_FILES) {
+        try { fs.unlinkSync(`${this.modelDir()}/${item.name}`); } catch (_e) { /* absent */ }
+      }
+      this.offlineLoad = null;
+      CapabilityRegistry.mark('ocr', true, false, 'model_download_required', 'none');
+      result.success(this.modelStatus());
+    } catch (_e) {
+      result.error('model_delete_failed', 'delete failed', null);
+    }
+  }
+
+  private async download(url: string): Promise<ArrayBuffer> {
+    const request = http.createHttp();
+    try {
+      const response = await request.request(url, {
+        method: http.RequestMethod.GET,
+        connectTimeout: 30000,
+        readTimeout: 120000,
+        expectDataType: http.HttpDataType.ARRAY_BUFFER,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300 ||
+          !(response.result instanceof ArrayBuffer)) {
+        throw new Error(`http_${response.responseCode}`);
+      }
+      return response.result;
+    } finally {
+      request.destroy();
+    }
+  }
+
+  private readFile(path: string): ArrayBuffer {
+    const file = fs.openSync(path, fs.OpenMode.READ_ONLY);
+    try {
+      const size = fs.statSync(file.fd).size;
+      const buffer = new ArrayBuffer(size);
+      fs.readSync(file.fd, buffer);
+      return buffer;
+    } finally {
+      fs.closeSync(file);
+    }
+  }
+
+  private writeFile(path: string, bytes: ArrayBuffer): void {
+    const file = fs.openSync(
+      path,
+      fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC,
+    );
+    try {
+      fs.writeSync(file.fd, bytes);
+    } finally {
+      fs.closeSync(file);
+    }
+  }
+
+  private static async sha256(bytes: ArrayBuffer): Promise<string> {
+    const md = cryptoFramework.createMd('SHA256');
+    await md.update({ data: new Uint8Array(bytes) });
+    const digest = await md.digest();
+    return Array.from(digest.data)
+      .map((value: number): string => value.toString(16).padStart(2, '0'))
+      .join('');
   }
 
   private async recognize(call: MethodCall, result: MethodResult): Promise<void> {

@@ -19,6 +19,7 @@ import {
 } from '@ohos/flutter_ohos';
 import reminderAgentManager from '@ohos.reminderAgentManager';
 import notificationManager from '@ohos.notificationManager';
+import { liveViewManager } from '@kit.LiveViewKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { CapabilityRegistry } from './CapabilitiesPlugin';
 
@@ -30,6 +31,7 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
   private sink: EventSink | null = null;
   // 冷启动期间收到的通知点击先入队，Flutter 订阅后一次性补发。
   private queued: Array<Record<string, string>> = [];
+  private liveActivity: liveViewManager.LiveView | null = null;
 
   getUniqueClassName(): string {
     return 'ReminderPlugin';
@@ -43,6 +45,10 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
     const available = canIUse('SystemCapability.Notification.ReminderAgent');
     CapabilityRegistry.mark('reminders', true, available,
       available ? '' : 'device_unsupported');
+    const liveActivityAvailable =
+      canIUse('SystemCapability.LiveView.LiveViewService');
+    CapabilityRegistry.mark('liveActivity', true, liveActivityAvailable,
+      liveActivityAvailable ? '' : 'device_unsupported');
   }
 
   onDetachedFromEngine(_binding: FlutterPluginBinding): void {
@@ -91,6 +97,12 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
         break;
       case 'cancelReminder':
         this.cancel(call, result);
+        break;
+      case 'publishInstantNotification':
+        this.publishInstant(call, result);
+        break;
+      case 'syncLiveActivity':
+        this.syncLiveActivity(call, result);
         break;
       case 'getScheduledReminderIds':
         // 本 SDK 的 getValidReminders 返回项不含 reminderId，
@@ -150,6 +162,89 @@ export class ReminderPlugin implements FlutterPlugin, MethodCallHandler, StreamH
     } catch (e) {
       const err = e as BusinessError;
       result.error('reminder_failed', `code=${err.code}`, null);
+    }
+  }
+
+  private async publishInstant(call: MethodCall, result: MethodResult): Promise<void> {
+    try {
+      const request: notificationManager.NotificationRequest = {
+        id: Date.now() & 0x7fffffff,
+        notificationSlotType: notificationManager.SlotType.SOCIAL_COMMUNICATION,
+        content: {
+          notificationContentType:
+            notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT,
+          normal: {
+            title: call.argument('title') as string,
+            text: call.argument('body') as string,
+          },
+        },
+      };
+      await notificationManager.publish(request);
+      result.success(null);
+    } catch (e) {
+      const err = e as BusinessError;
+      result.error('notification_failed', `code=${err.code}`, null);
+    }
+  }
+
+  private async syncLiveActivity(call: MethodCall, result: MethodResult): Promise<void> {
+    try {
+      const cardId = call.argument('cardId') as string | null;
+      if (cardId === null) {
+        if (this.liveActivity !== null) {
+          this.liveActivity.sequence = (this.liveActivity.sequence ?? 0) + 1;
+          await liveViewManager.stopLiveView(this.liveActivity);
+          this.liveActivity = null;
+        }
+        result.success(null);
+        return;
+      }
+      if (!canIUse('SystemCapability.LiveView.LiveViewService') ||
+          !(await liveViewManager.isLiveViewEnabled())) {
+        result.error('live_view_unavailable', 'device_unsupported_or_disabled', null);
+        return;
+      }
+      const id = ReminderPlugin.stableId(cardId);
+      const title = call.argument('title') as string;
+      const timeLabel = call.argument('timeLabel') as string;
+      const endsAtMs = call.argument('endsAtMs') as number;
+      const next: liveViewManager.LiveView = {
+        id: id,
+        event: 'deadline_reminder',
+        sequence: (this.liveActivity?.sequence ?? -1) + 1,
+        timer: {
+          time: endsAtMs,
+          isCountdown: true,
+        },
+        liveViewData: {
+          primary: {
+            title: title,
+            content: [{ text: timeLabel }],
+          },
+          capsule: {
+            type: liveViewManager.CapsuleType.CAPSULE_TYPE_TIMER,
+            status: 1,
+            content: '截期',
+            time: endsAtMs,
+            isCountdown: true,
+          },
+        },
+      };
+      if (this.liveActivity === null || this.liveActivity.id !== id) {
+        if (this.liveActivity !== null) {
+          this.liveActivity.sequence = (this.liveActivity.sequence ?? 0) + 1;
+          await liveViewManager.stopLiveView(this.liveActivity);
+        }
+        next.sequence = 0;
+        await liveViewManager.startLiveView(next);
+      } else {
+        await liveViewManager.updateLiveView(next);
+      }
+      this.liveActivity = next;
+      result.success(null);
+    } catch (e) {
+      const err = e as BusinessError;
+      result.error('live_view_failed', `code=${err.code}`, null);
     }
   }
 

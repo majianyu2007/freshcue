@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:freshcue/domain/entities/source_asset.dart';
 import 'package:freshcue/domain/enums/enums.dart';
 import 'package:freshcue/domain/parser/date_normalizer.dart';
 import 'package:freshcue/domain/parser/screenshot_parser.dart';
@@ -253,6 +254,59 @@ void main() {
       final d = parser.parseText('活动时间7月25日14:00\n报名截止7月20日18:00', anchor);
       expect(d.candidates.first.role, TemporalRole.deadline);
     });
+  });
+
+  test('同一张长截图按留白拆成多条时效信息', () {
+    final blocks = [
+      const OcrBlock(
+        id: 'a1',
+        text: '音乐节门票',
+        left: 0.08,
+        top: 0.08,
+        right: 0.7,
+        bottom: 0.12,
+        lineIndex: 0,
+      ),
+      const OcrBlock(
+        id: 'a2',
+        text: '7月25日 19:30入场',
+        left: 0.08,
+        top: 0.14,
+        right: 0.8,
+        bottom: 0.18,
+        lineIndex: 1,
+      ),
+      const OcrBlock(
+        id: 'b1',
+        text: '快递取件通知',
+        left: 0.08,
+        top: 0.48,
+        right: 0.7,
+        bottom: 0.52,
+        lineIndex: 2,
+      ),
+      const OcrBlock(
+        id: 'b2',
+        text: '请于7月22日18:00前取件',
+        left: 0.08,
+        top: 0.54,
+        right: 0.85,
+        bottom: 0.58,
+        lineIndex: 3,
+      ),
+    ];
+
+    final drafts = parser.parseCandidates(blocks: blocks, anchor: anchor);
+
+    expect(drafts, hasLength(2));
+    expect(
+      drafts.map((draft) => draft.category),
+      contains(CardCategory.ticket),
+    );
+    expect(
+      drafts.map((draft) => draft.category),
+      contains(CardCategory.pickup),
+    );
   });
 
   group('卡片分类', () {

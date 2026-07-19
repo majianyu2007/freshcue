@@ -77,6 +77,42 @@ class OcrResult {
   final int durationMs;
 }
 
+enum OcrDownloadSource { github, ghproxy, fastly }
+
+class OcrModelStatus {
+  const OcrModelStatus({
+    required this.coreVisionSupported,
+    required this.installed,
+    required this.version,
+    required this.downloadBytes,
+    required this.provider,
+    this.downloadedBytes = 0,
+    this.downloading = false,
+  });
+
+  const OcrModelStatus.unavailable()
+    : coreVisionSupported = false,
+      installed = false,
+      version = 'ocr-v1',
+      downloadBytes = 0,
+      downloadedBytes = 0,
+      downloading = false,
+      provider = OcrProvider.none;
+
+  final bool coreVisionSupported;
+  final bool installed;
+  final String version;
+  final int downloadBytes;
+  final int downloadedBytes;
+  final bool downloading;
+
+  double get downloadProgress =>
+      downloadBytes == 0 ? 0 : (downloadedBytes / downloadBytes).clamp(0, 1);
+  final OcrProvider provider;
+
+  bool get ready => coreVisionSupported || installed;
+}
+
 /// OCR 能力抽象。真实实现桥接 HarmonyOS Core Vision（ArkTS），
 /// Mock 实现仅 Debug 可用且 UI 明显标注。
 abstract interface class OcrGateway {
@@ -86,6 +122,9 @@ abstract interface class OcrGateway {
     List<String> languageHints = const ['zh-Hans'],
     bool detectOrientation = true,
   });
+  Future<OcrModelStatus> getModelStatus();
+  Future<OcrModelStatus> downloadModels(OcrDownloadSource source);
+  Future<OcrModelStatus> deleteModels();
 }
 
 /// 分享接收的条目。
@@ -119,7 +158,10 @@ abstract interface class ShareGateway {
   Stream<SharedItem> get sharedItems;
 
   /// 系统图库选择器。
+  Future<SharedItem?> capturePhoto();
   Future<SharedItem?> pickImage();
+
+  Future<void> shareText({required String title, required String text});
 }
 
 /// 代理提醒调度载荷。
@@ -162,6 +204,20 @@ class ReminderActionEvent {
   final String instanceId;
 }
 
+class LiveActivitySnapshot {
+  const LiveActivitySnapshot({
+    required this.cardId,
+    required this.title,
+    required this.timeLabel,
+    required this.endsAt,
+  });
+
+  final String cardId;
+  final String title;
+  final String timeLabel;
+  final DateTime endsAt;
+}
+
 /// 代理提醒能力（channel: freshcue/reminders）。
 /// 真实实现桥接 @ohos.reminderAgentManager。
 abstract interface class ReminderGateway {
@@ -172,6 +228,15 @@ abstract interface class ReminderGateway {
   Future<int> scheduleCalendarReminder(ReminderPayload payload);
   Future<void> cancelReminder(int platformId);
   Future<List<int>> getScheduledReminderIds();
+
+  /// 立即发布一条本地 Notification Kit 通知。
+  Future<void> publishInstantNotification({
+    required String title,
+    required String body,
+  });
+
+  /// 同步状态栏胶囊/锁屏实况窗；null 表示结束当前实况窗。
+  Future<void> syncLiveActivity(LiveActivitySnapshot? snapshot);
 
   /// 通知点击/行为事件（含冷启动补发，桥接层保证只发一次）。
   Stream<ReminderActionEvent> get actions;

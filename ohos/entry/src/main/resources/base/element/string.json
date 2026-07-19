@@ -10,11 +10,11 @@
     },
     {
       "name": "EntryAbility_label",
-      "value": "freshcue"
+      "value": "截期"
     },
     {
       "name": "freshcue_form_name",
-      "value": "FreshCue 待办"
+      "value": "截期"
     },
     {
       "name": "freshcue_form_desc",

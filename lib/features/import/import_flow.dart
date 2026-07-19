@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/enums/enums.dart';
@@ -7,39 +8,63 @@ import '../review/review_page.dart';
 /// 导入流程入口：选择来源 → 处理页 → 确认页。
 Future<void> startImportFlow(
   BuildContext context,
-  AppController controller,
-) async {
-  final choice = await showModalBottomSheet<String>(
-    context: context,
-    showDragHandle: true,
-    builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('从图库选择'),
-            onTap: () => Navigator.pop(context, 'gallery'),
+  AppController controller, {
+  String? initialChoice,
+}) async {
+  final choice =
+      initialChoice ??
+      await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.add_a_photo_outlined),
+                title: const Text('拍一张'),
+                subtitle: const Text('打开系统相机，拍下含有时间的信息'),
+                onTap: () => Navigator.pop(context, 'camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('从图库选择'),
+                onTap: () => Navigator.pop(context, 'gallery'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.auto_awesome_outlined),
+                title: const Text('体验真实中文截图'),
+                subtitle: const Text('取件、票务、活动通知，走完整离线 OCR'),
+                onTap: () => Navigator.pop(context, 'samples'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.keyboard_alt_outlined),
+                title: const Text('手动粘贴文字'),
+                subtitle: const Text('OCR 不可用或识别失败时的降级方式'),
+                onTap: () => Navigator.pop(context, 'manual'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.science_outlined),
+                title: const Text('演示样例'),
+                subtitle: const Text('合成的活动通知截图，不含个人信息'),
+                onTap: () => Navigator.pop(context, 'demo'),
+              ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.keyboard_alt_outlined),
-            title: const Text('手动粘贴文字'),
-            subtitle: const Text('OCR 不可用或识别失败时的降级方式'),
-            onTap: () => Navigator.pop(context, 'manual'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.science_outlined),
-            title: const Text('演示样例'),
-            subtitle: const Text('合成的活动通知截图，不含个人信息'),
-            onTap: () => Navigator.pop(context, 'demo'),
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
   if (choice == null || !context.mounted) return;
 
   switch (choice) {
+    case 'camera':
+      final item = await controller.share.capturePhoto();
+      if (item == null || !context.mounted) return;
+      final ok = await controller.importFromBytes(
+        item.bytes,
+        source: ImportSource.camera,
+        displayName: item.displayName,
+      );
+      if (ok && context.mounted) await openDraftReview(context, controller);
     case 'gallery':
       final item = await controller.share.pickImage();
       if (item == null) {
@@ -64,6 +89,16 @@ Future<void> startImportFlow(
         displayName: item.displayName,
       );
       if (ok && context.mounted) await openDraftReview(context, controller);
+    case 'samples':
+      final sample = await _chooseSample(context);
+      if (sample == null || !context.mounted) return;
+      final data = await rootBundle.load(sample.$1);
+      final ok = await controller.importFromBytes(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        source: ImportSource.gallery,
+        displayName: sample.$2,
+      );
+      if (ok && context.mounted) await openDraftReview(context, controller);
     case 'manual':
       if (context.mounted) await _manualInput(context, controller);
     case 'demo':
@@ -71,6 +106,55 @@ Future<void> startImportFlow(
       if (context.mounted) await openDraftReview(context, controller);
   }
 }
+
+Future<(String, String)?> _chooseSample(BuildContext context) =>
+    showDialog<(String, String)>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('选择一张中文截图'),
+        children: [
+          for (final sample in const [
+            ('assets/samples/parcel_pickup.png', '快递取件通知', '识别取件码与免费保管截止时间'),
+            ('assets/samples/concert_ticket.png', '音乐会电子票', '识别入场与演出两个时间角色'),
+            ('assets/samples/registration_notice.png', '活动报名通知', '识别报名截止与活动时间'),
+          ])
+            SimpleDialogOption(
+              onPressed: () =>
+                  Navigator.pop(context, (sample.$1, '${sample.$2}.png')),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      sample.$1,
+                      width: 56,
+                      height: 72,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          sample.$2,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          sample.$3,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
 
 Future<void> _manualInput(
   BuildContext context,

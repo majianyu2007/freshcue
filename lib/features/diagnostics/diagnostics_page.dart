@@ -98,7 +98,9 @@ class DiagnosticsPage extends StatelessWidget {
     const names = {
       'ocr': 'OCR',
       'share': '分享接收',
+      'harmonyShare': '碰一碰 / 隔空分享',
       'reminders': '代理提醒',
+      'liveActivity': '实况窗',
       'forms': '服务卡片',
       'database': '数据库',
     };

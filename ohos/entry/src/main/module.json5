@@ -72,11 +72,15 @@
         ]
       }
     ],
-    // 隐私：Release 不声明网络权限（本应用无任何网络代码）。
+    // 网络只用于用户主动下载离线 OCR 模型。
     "requestPermissions": [
       {
         // 代理提醒：安装期授予（system_grant）。
         "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
+      },
+      {
+        // 截图和识别内容不上传。
+        "name": "ohos.permission.INTERNET"
       }
     ]
   }
