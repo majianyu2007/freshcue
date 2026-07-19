@@ -11,7 +11,7 @@ import '../../domain/entities/source_asset.dart';
 import '../../domain/entities/temporal_card.dart';
 import '../../domain/enums/enums.dart';
 import '../../domain/parser/screenshot_parser.dart';
-import '../../platform/gateways.dart';
+import '../../domain/services/reminder_policy.dart';
 
 /// 确认页：原图证据 + 高亮 + 字段编辑 + 提醒预览。
 /// 用户确认前不创建任何正式提醒。
@@ -38,6 +38,8 @@ class _ReviewPageState extends State<ReviewPage> {
   String? highlightedCandidateId;
   bool _saving = false;
   late Set<int> selectedDraftIndexes;
+  late DeliveryMode deliveryMode;
+  bool _showReminderDetails = false;
 
   @override
   void initState() {
@@ -49,6 +51,13 @@ class _ReviewPageState extends State<ReviewPage> {
     category = ctx.draft.category;
     anchors = Map.of(ctx.draft.suggestedAnchors);
     selectedDraftIndexes = {for (var i = 0; i < ctx.drafts.length; i++) i};
+    deliveryMode = widget.controller.defaultDeliveryMode;
+    if (deliveryMode == DeliveryMode.systemCalendar &&
+        anchors[TemporalRole.eventStart] == null &&
+        anchors[TemporalRole.deadline] == null &&
+        anchors[TemporalRole.expiry] == null) {
+      deliveryMode = DeliveryMode.appReminder;
+    }
   }
 
   @override
@@ -82,17 +91,20 @@ class _ReviewPageState extends State<ReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final now = widget.controller.clock.now();
     final expansion = widget.controller.reminderPolicy.expand(
       _previewCard,
       _plans,
-      now,
+      widget.controller.clock.now(),
       IdGen.newId,
     );
+    final calendarAnchor =
+        _previewCard.eventStartAt ??
+        _previewCard.deadlineAt ??
+        _previewCard.expiresAt;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('确认时效卡片'),
+        title: const Text('确认内容'),
         actions: [
           TextButton(
             onPressed: _saving
@@ -101,48 +113,47 @@ class _ReviewPageState extends State<ReviewPage> {
                     widget.controller.cancelImport();
                     Navigator.pop(context);
                   },
-            child: const Text('放弃'),
+            child: const Text('取消'),
           ),
         ],
       ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(_saveLabel()),
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
           if (ctx.duplicateOfCardId != null)
             _Notice(
               icon: Icons.copy_all_outlined,
-              text: '这张截图似乎已导入过，继续将创建一张新卡片。',
+              text: '这张图之前导入过，保存后会多一张卡片。',
               color: AppTheme.upcomingColor,
-            ),
-          if (ctx.ocrProvider != OcrProvider.none)
-            _Notice(
-              icon: Icons.document_scanner_outlined,
-              text: '识别来源：${ctx.ocrProvider.label}',
-              color: Theme.of(context).colorScheme.primary,
             ),
           if (widget.controller.importFailure != null)
             _Notice(
               icon: Icons.edit_note_outlined,
-              text: '自动识别失败，原图已保留。请手动填写标题和关键时间。',
+              text: '这次没认全，你可以直接修改下面的内容。',
               color: AppTheme.upcomingColor,
             ),
           if (ctx.draft.highRisk)
             _Notice(
               icon: Icons.warning_amber_outlined,
-              text: '检测到疑似证件号/银行卡号，不建议保存此类信息。',
+              text: '图中可能有证件号或银行卡号，保存前请仔细检查。',
               color: AppTheme.urgentColor,
             ),
-          for (final w in ctx.draft.warnings.where((w) => !w.contains('不建议保存')))
-            _Notice(
-              icon: Icons.info_outline,
-              text: w,
-              color: Theme.of(context).colorScheme.primary,
-            ),
           if (ctx.drafts.length > 1) ...[
-            _Notice(
-              icon: Icons.auto_awesome_motion_outlined,
-              text: '识别到 ${ctx.drafts.length} 条时效信息，请取消不需要保存的条目。',
-              color: Theme.of(context).colorScheme.primary,
+            _SectionTitle(
+              title: '这张图里有 ${ctx.drafts.length} 条信息',
+              subtitle: '只保留你需要的',
             ),
             Card(
               child: Column(
@@ -152,9 +163,7 @@ class _ReviewPageState extends State<ReviewPage> {
                       value: selectedDraftIndexes.contains(i),
                       title: Text(ctx.drafts[i].title),
                       subtitle: Text(
-                        i == 0
-                            ? '${ctx.drafts[i].category.label} · 下方可编辑'
-                            : _draftSummary(ctx.drafts[i]),
+                        i == 0 ? '当前正在编辑' : _draftSummary(ctx.drafts[i]),
                       ),
                       onChanged: (selected) => setState(() {
                         if (selected == true) {
@@ -167,14 +176,15 @@ class _ReviewPageState extends State<ReviewPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
           ],
           _EvidenceImage(
             asset: ctx.asset,
             blocks: ctx.blocks,
             highlightBlockIds: _highlightIds(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
+          const _SectionTitle(title: '卡片内容', subtitle: '有误的地方直接改'),
           TextField(
             controller: titleCtl,
             decoration: const InputDecoration(
@@ -186,9 +196,9 @@ class _ReviewPageState extends State<ReviewPage> {
           const SizedBox(height: 12),
           DropdownButtonFormField<CardCategory>(
             initialValue: category,
-            decoration: InputDecoration(
-              labelText: '分类（${ctx.draft.categoryExplanation}）',
-              border: const OutlineInputBorder(),
+            decoration: const InputDecoration(
+              labelText: '分类',
+              border: OutlineInputBorder(),
             ),
             items: [
               for (final c in CardCategory.values)
@@ -209,7 +219,7 @@ class _ReviewPageState extends State<ReviewPage> {
           TextField(
             controller: locationCtl,
             decoration: const InputDecoration(
-              labelText: '地点',
+              labelText: '地点（可不填）',
               border: OutlineInputBorder(),
             ),
           ),
@@ -217,68 +227,132 @@ class _ReviewPageState extends State<ReviewPage> {
           TextField(
             controller: secretCtl,
             decoration: const InputDecoration(
-              labelText: '取件码/入场码',
+              labelText: '取件码、入场码等（可不填）',
               border: OutlineInputBorder(),
             ),
             onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: 20),
-          Text('关键时间', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: 24),
+          const _SectionTitle(title: '时间', subtitle: '点一下即可修改'),
           ..._buildCandidateGroups(),
           _AddAnchorButton(
             existing: anchors.keys.toSet(),
             onAdd: (role) => _pickDateTime(role),
           ),
-          const SizedBox(height: 20),
-          Text('提醒计划', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          if (expansion.instances.isEmpty)
-            const Text('当前设置不会创建提醒')
-          else ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final inst in expansion.instances)
-                  Chip(label: Text(formatShort(inst.triggerAt))),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '保存后将创建 ${expansion.instances.length} 条系统提醒',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-          for (final note in expansion.notes)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '· $note',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppTheme.upcomingColor),
-              ),
-            ),
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    ctx.drafts.length > 1
-                        ? '确认并创建 ${selectedDraftIndexes.length} 张卡片'
-                        : '确认并创建卡片',
-                  ),
+          const _SectionTitle(title: '保存后怎么提醒', subtitle: '两种方式不会同时开启'),
+          _DeliveryPicker(
+            value: deliveryMode,
+            calendarEnabled: calendarAnchor != null,
+            onChanged: (value) => setState(() => deliveryMode = value),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 10),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: deliveryMode == DeliveryMode.appReminder
+                  ? _appReminderSummary(expansion)
+                  : _calendarSummary(calendarAnchor),
+            ),
+          ),
+          const SizedBox(height: 14),
+          ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+            title: const Text('识别说明'),
+            subtitle: const Text('需要时再查看原文和判断依据'),
+            children: [
+              ListTile(
+                title: const Text('文字识别'),
+                trailing: Text(ctx.ocrProvider.label),
+              ),
+              ListTile(
+                title: const Text('分类依据'),
+                subtitle: Text(ctx.draft.categoryExplanation),
+              ),
+              for (final warning in ctx.draft.warnings)
+                ListTile(
+                  leading: const Icon(Icons.info_outline, size: 18),
+                  title: Text(warning),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
+
+  String _saveLabel() {
+    if (ctx.drafts.length > 1) {
+      return '保存 ${selectedDraftIndexes.length} 张卡片';
+    }
+    return deliveryMode == DeliveryMode.systemCalendar ? '保存并加入系统日程' : '保存卡片';
+  }
+
+  Widget _appReminderSummary(ExpansionResult expansion) {
+    if (expansion.instances.isEmpty) {
+      return const Row(
+        children: [
+          Icon(Icons.notifications_off_outlined),
+          SizedBox(width: 10),
+          Expanded(child: Text('没有可提醒的未来时间')),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.notifications_active_outlined),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '截期会提醒 ${expansion.instances.length} 次，最近一次是 '
+                '${formatShort(expansion.instances.first.triggerAt)}',
+              ),
+            ),
+          ],
+        ),
+        TextButton(
+          onPressed: () =>
+              setState(() => _showReminderDetails = !_showReminderDetails),
+          child: Text(_showReminderDetails ? '收起时间' : '查看全部时间'),
+        ),
+        if (_showReminderDetails) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final instance in expansion.instances)
+                Chip(label: Text(formatShort(instance.triggerAt))),
+            ],
+          ),
+          for (final note in expansion.notes)
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(note, style: Theme.of(context).textTheme.bodySmall),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _calendarSummary(DateTime? anchor) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Icon(Icons.calendar_month_outlined),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Text(
+          anchor == null
+              ? '先添加一个未来时间，才能加入系统日程'
+              : '将在 ${formatDateTime(anchor)} 创建日程。'
+                    '首次使用时系统会询问日历权限。',
+        ),
+      ),
+    ],
+  );
 
   String _draftSummary(ParsedDraft draft) {
     final anchors = draft.suggestedAnchors;
@@ -318,31 +392,11 @@ class _ReviewPageState extends State<ReviewPage> {
               '${cand.role.label} · '
               '${cand.normalizedDateTime == null ? cand.rawText : formatDateTime(cand.normalizedDateTime!)}',
             ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('原文「${cand.rawText}」'),
-                if (cand.explanation.isNotEmpty)
-                  Text(
-                    cand.explanation,
-                    style: TextStyle(
-                      color: AppTheme.upcomingColor,
-                      fontSize: 12,
-                    ),
-                  ),
-                if (cand.requiresConfirmation)
-                  const Text(
-                    '请确认',
-                    style: TextStyle(
-                      color: AppTheme.urgentColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                if (cand.role == TemporalRole.publishTime)
-                  const Text('发布时间不用于提醒', style: TextStyle(fontSize: 12)),
-              ],
-            ),
+            subtitle: cand.requiresConfirmation
+                ? const Text('日期可能有偏差，请点击核对')
+                : cand.role == TemporalRole.publishTime
+                ? const Text('仅作参考，不用于提醒')
+                : null,
             trailing: cand.role == TemporalRole.publishTime
                 ? null
                 : IconButton(
@@ -435,13 +489,20 @@ class _ReviewPageState extends State<ReviewPage> {
         additionalDraftIndexes: selectedDraftIndexes
             .where((i) => i > 0)
             .toSet(),
+        deliveryMode: deliveryMode,
       );
       if (!mounted) return;
-      final msg = switch (failures) {
-        -1 => '卡片已保存，但通知权限未开启，提醒未启用',
-        0 => '卡片已创建',
-        _ => '卡片已保存，$failures 条提醒创建失败（可在详情页重试）',
-      };
+      final msg = failures.permissionDenied
+          ? failures.mode == DeliveryMode.systemCalendar
+                ? '卡片已保存；允许日历权限后可再加入系统日程'
+                : '卡片已保存；开启通知后才能收到提醒'
+          : failures.failures > 0
+          ? failures.mode == DeliveryMode.systemCalendar
+                ? '卡片已保存，但日程还没有写入，可以稍后重试'
+                : '卡片已保存，部分提醒需要稍后重试'
+          : failures.mode == DeliveryMode.systemCalendar
+          ? '已保存并加入系统日程'
+          : '已保存';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       Navigator.pop(context, cardId);
     } on AppFailure catch (failure) {
@@ -519,6 +580,151 @@ class _EvidenceImage extends StatelessWidget {
                     ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            subtitle,
+            textAlign: TextAlign.end,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _DeliveryPicker extends StatelessWidget {
+  const _DeliveryPicker({
+    required this.value,
+    required this.calendarEnabled,
+    required this.onChanged,
+  });
+
+  final DeliveryMode value;
+  final bool calendarEnabled;
+  final ValueChanged<DeliveryMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: _DeliveryOption(
+          icon: Icons.notifications_active_outlined,
+          title: '截期提醒',
+          subtitle: '在应用里管理',
+          selected: value == DeliveryMode.appReminder,
+          onTap: () => onChanged(DeliveryMode.appReminder),
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: _DeliveryOption(
+          icon: Icons.calendar_month_outlined,
+          title: '系统日程',
+          subtitle: calendarEnabled ? '在日历里管理' : '需要先设时间',
+          selected: value == DeliveryMode.systemCalendar,
+          enabled: calendarEnabled,
+          onTap: () => onChanged(DeliveryMode.systemCalendar),
+        ),
+      ),
+    ],
+  );
+}
+
+class _DeliveryOption extends StatelessWidget {
+  const _DeliveryOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final foreground = enabled
+        ? selected
+              ? colors.onPrimaryContainer
+              : colors.onSurface
+        : colors.onSurface.withValues(alpha: 0.38);
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected
+                ? colors.primaryContainer
+                : colors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? colors.primary : colors.outlineVariant,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: foreground),
+                  const Spacer(),
+                  Icon(
+                    selected ? Icons.check_circle : Icons.circle_outlined,
+                    size: 19,
+                    color: foreground,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: foreground,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: foreground),
+              ),
+            ],
           ),
         ),
       ),

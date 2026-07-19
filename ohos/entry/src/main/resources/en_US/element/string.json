@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "截期"
+    },
+    {
+      "name": "calendar_permission_reason",
+      "value": "Create and keep the system calendar events you choose in sync with FreshCue cards"
     }
   ]
 }

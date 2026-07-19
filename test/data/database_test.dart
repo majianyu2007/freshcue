@@ -41,6 +41,8 @@ void main() {
     eventStartAt: DateTime(2026, 7, 25, 14, 0),
     eventEndAt: DateTime(2026, 7, 25, 16, 30),
     isSensitive: true,
+    deliveryMode: DeliveryMode.systemCalendar,
+    calendarEventId: 2048,
     createdAt: now,
     updatedAt: now,
   );
@@ -71,6 +73,8 @@ void main() {
     expect(loaded.eventEndAt, DateTime(2026, 7, 25, 16, 30));
     expect(loaded.isSensitive, isTrue);
     expect(loaded.secretValue, 'A7281');
+    expect(loaded.deliveryMode, DeliveryMode.systemCalendar);
+    expect(loaded.calendarEventId, 2048);
   });
 
   test('按状态查询', () async {
@@ -163,7 +167,7 @@ void main() {
     expect(loaded.confidence, isNull);
   });
 
-  test('迁移冒烟：v1 → v2（ocr_blocks.confidence 变为可空且保留旧数据）', () async {
+  test('迁移冒烟：v1 → 当前版本（保留旧数据并补齐新字段）', () async {
     // 用 v1 建库并写入一条带 NOT NULL confidence 的记录。
     final path = '${Directory.systemTemp.createTempSync('fc_mig').path}/m.db';
     final v1 = await factory.openDatabase(
@@ -186,18 +190,18 @@ void main() {
     });
     await v1.close();
 
-    // 用当前 schema 重新打开 → 触发 onUpgrade 到 v2。
-    final v2 = await openAppDatabase(factory, path);
-    expect(await v2.getVersion(), 2);
+    // 用当前 schema 重新打开 → 依次执行后续迁移。
+    final current = await openAppDatabase(factory, path);
+    expect(await current.getVersion(), AppSchema.version);
     // 旧数据保留。
-    final rows = await v2.query(
+    final rows = await current.query(
       'ocr_blocks',
       where: 'id = ?',
       whereArgs: ['old'],
     );
     expect(rows.single['confidence'], 0.9);
     // 新表允许 null 写入。
-    await v2.insert('ocr_blocks', {
+    await current.insert('ocr_blocks', {
       'id': 'new',
       'card_id': 'c1',
       'text': '新数据',
@@ -208,9 +212,16 @@ void main() {
       'confidence': null,
       'line_index': 1,
     });
-    final n = await v2.query('ocr_blocks', where: 'id = ?', whereArgs: ['new']);
+    final n = await current.query(
+      'ocr_blocks',
+      where: 'id = ?',
+      whereArgs: ['new'],
+    );
     expect(n.single['confidence'], isNull);
-    await v2.close();
+    final columns = await current.rawQuery('PRAGMA table_info(temporal_cards)');
+    expect(columns.map((row) => row['name']), contains('delivery_mode'));
+    expect(columns.map((row) => row['name']), contains('calendar_event_id'));
+    await current.close();
   });
 
   test('设置读写', () async {

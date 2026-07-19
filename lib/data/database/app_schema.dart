@@ -4,7 +4,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppSchema {
   AppSchema._();
 
-  static const int version = 2;
+  static const int version = 3;
 
   static Future<void> onCreate(Database db, int version) async {
     for (var v = 1; v <= version; v++) {
@@ -161,6 +161,16 @@ class AppSchema {
       await db.execute('DROP TABLE ocr_blocks');
       await db.execute('ALTER TABLE ocr_blocks_v2 RENAME TO ocr_blocks');
       await db.execute('CREATE INDEX idx_blocks_card ON ocr_blocks(card_id)');
+    },
+    // v3：记录卡片选择的提醒承载方式和系统日程 ID。
+    // 旧卡片保持使用截期提醒，不改变既有行为。
+    3: (db) async {
+      await db.execute(
+        "ALTER TABLE temporal_cards ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'appReminder'",
+      );
+      await db.execute(
+        'ALTER TABLE temporal_cards ADD COLUMN calendar_event_id INTEGER',
+      );
     },
   };
 }

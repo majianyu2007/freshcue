@@ -18,6 +18,9 @@ AppFailure _mapPlatformError(PlatformException e) {
     'ocr_failed' => FailureCode.ocrFailed,
     'cancelled' => FailureCode.cancelled,
     'reminder_failed' => FailureCode.reminderScheduleFailed,
+    'calendar_permission_denied' => FailureCode.calendarPermissionDenied,
+    'calendar_unavailable' => FailureCode.calendarUnavailable,
+    'calendar_failed' => FailureCode.calendarWriteFailed,
     'uri_expired' => FailureCode.shareUriExpired,
     _ => FailureCode.unknown,
   };
@@ -358,6 +361,80 @@ class ChannelReminderGateway implements ReminderGateway {
           instanceId: m['instanceId'] as String? ?? '',
         );
       });
+}
+
+class ChannelCalendarGateway implements CalendarGateway {
+  static const _channel = MethodChannel('freshcue/calendar');
+
+  @override
+  Future<bool> isAvailable() async {
+    try {
+      return await _channel.invokeMethod<bool>('isAvailable') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> requestPermissionIfNeeded() async {
+    try {
+      return await _channel.invokeMethod<bool>('requestPermission') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  @override
+  Future<int> createEvent(CalendarEventPayload payload) async {
+    try {
+      final id = await _channel.invokeMethod<int>('createEvent', _map(payload));
+      if (id == null) throw const AppFailure(FailureCode.calendarWriteFailed);
+      return id;
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    } on MissingPluginException {
+      throw const AppFailure(FailureCode.calendarUnavailable);
+    }
+  }
+
+  @override
+  Future<void> updateEvent(int eventId, CalendarEventPayload payload) async {
+    try {
+      await _channel.invokeMethod<void>('updateEvent', {
+        ..._map(payload),
+        'eventId': eventId,
+      });
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    } on MissingPluginException {
+      throw const AppFailure(FailureCode.calendarUnavailable);
+    }
+  }
+
+  @override
+  Future<void> deleteEvent(int eventId) async {
+    try {
+      await _channel.invokeMethod<void>('deleteEvent', {'eventId': eventId});
+    } on PlatformException catch (e) {
+      throw _mapPlatformError(e);
+    } on MissingPluginException {
+      throw const AppFailure(FailureCode.calendarUnavailable);
+    }
+  }
+
+  Map<String, Object?> _map(CalendarEventPayload payload) => {
+    'cardId': payload.cardId,
+    'title': payload.title,
+    'startAtMs': payload.startAt.millisecondsSinceEpoch,
+    'endAtMs': payload.endAt.millisecondsSinceEpoch,
+    'description': payload.description,
+    'location': payload.location,
+    'reminderMinutes': payload.reminderMinutes,
+  };
 }
 
 class ChannelFormGateway implements FormGateway {

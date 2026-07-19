@@ -79,6 +79,24 @@
         "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
       },
       {
+        // 仅在用户选择“系统日程”后申请。
+        "name": "ohos.permission.READ_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
+      },
+      {
+        // 用于创建并同步用户选择的系统日程。
+        "name": "ohos.permission.WRITE_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
+      },
+      {
         // 截图和识别内容不上传。
         "name": "ohos.permission.INTERNET"
       }

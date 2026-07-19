@@ -15,18 +15,21 @@ void main() {
   final now = DateTime(2026, 7, 18, 10, 0);
   late FixedClock clock;
   late MockReminderGateway reminderGateway;
+  late MockCalendarGateway calendarGateway;
   late MockFormGateway formGateway;
   late AppController controller;
 
   setUp(() {
     clock = FixedClock(now);
     reminderGateway = MockReminderGateway(clock);
+    calendarGateway = MockCalendarGateway();
     formGateway = MockFormGateway();
     controller = createMemoryAppController(
       clock: clock,
       ocr: MockOcrGateway(),
       share: MockShareGateway(),
       reminderGateway: reminderGateway,
+      calendarGateway: calendarGateway,
       formGateway: formGateway,
       sandboxDir: '/tmp/freshcue_test_sandbox',
     );
@@ -129,6 +132,35 @@ void main() {
     expect(find.text('通知测试'), findsOneWidget);
   });
 
+  testWidgets('默认提醒方式和提醒次数可修改并持久化', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('提醒'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('默认方式'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('系统日程'));
+    await tester.pumpAndSettle();
+    expect(controller.defaultDeliveryMode, DeliveryMode.systemCalendar);
+    expect(
+      await controller.settings.get('default_delivery_mode'),
+      DeliveryMode.systemCalendar.name,
+    );
+
+    await tester.tap(find.text('提醒次数'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('多提醒'));
+    await tester.pumpAndSettle();
+    expect(controller.reminderFrequency, ReminderFrequency.thorough);
+    expect(
+      await controller.settings.get('reminder_frequency'),
+      ReminderFrequency.thorough.name,
+    );
+  });
+
   testWidgets('关于页面展示产品信息而不是提醒调试工具', (tester) async {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
@@ -202,8 +234,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('截止'), findsWidgets);
     expect(find.textContaining('活动开始'), findsWidgets);
-    expect(find.text('请确认'), findsWidgets); // 本周五已过去 → 需要确认
-    expect(find.textContaining('将创建'), findsOneWidget);
+    expect(find.textContaining('日期可能有偏差'), findsWidgets);
+    expect(find.textContaining('截期会提醒'), findsOneWidget);
+  });
+
+  testWidgets('确认页选择系统日程后只创建日程', (tester) async {
+    await controller.setDefaultDeliveryMode(DeliveryMode.systemCalendar);
+    controller.importManualText('报名截止：7月20日 18:00 交材料');
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: ReviewPage(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('两种方式不会同时开启'), findsOneWidget);
+    expect(find.text('保存并加入系统日程'), findsOneWidget);
+    await tester.tap(find.text('保存并加入系统日程'));
+    await tester.pumpAndSettle();
+
+    final saved = controller.activeCards.single;
+    expect(saved.deliveryMode, DeliveryMode.systemCalendar);
+    expect(saved.calendarEventId, isNotNull);
+    expect(calendarGateway.events, hasLength(1));
+    expect(reminderGateway.scheduled, isEmpty);
   });
 
   testWidgets('确认页显示实际 OCR provider', (tester) async {
@@ -215,11 +270,16 @@ void main() {
       ),
     );
     expect(imported, isTrue, reason: controller.importFailure.toString());
+    tester.view.physicalSize = const Size(1080, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(home: ReviewPage(controller: controller)),
     );
-    await tester.pump();
-    expect(find.text('识别来源：模拟 OCR'), findsOneWidget);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('识别说明'));
+    await tester.pumpAndSettle();
+    expect(find.text('模拟 OCR'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     controller.cancelImport();
   });
@@ -230,6 +290,7 @@ void main() {
       ocr: _FailingOcrGateway(),
       share: MockShareGateway(),
       reminderGateway: reminderGateway,
+      calendarGateway: MockCalendarGateway(),
       formGateway: MockFormGateway(),
       sandboxDir: '/tmp/freshcue_test_sandbox',
     );
@@ -244,12 +305,15 @@ void main() {
     expect(controller.pendingDraft!.ocrProvider, OcrProvider.none);
     expect(controller.importFailure?.code, FailureCode.ocrFailed);
 
+    tester.view.physicalSize = const Size(1080, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(home: ReviewPage(controller: controller)),
     );
     await tester.pump();
-    expect(find.textContaining('自动识别失败'), findsOneWidget);
-    expect(find.byType(TextField), findsAtLeast(2));
+    expect(find.textContaining('这次没认全'), findsOneWidget);
+    expect(find.byType(TextField), findsAtLeast(1));
     await tester.dragUntilVisible(
       find.text('添加时间'),
       find.byType(Scrollable).first,
@@ -269,7 +333,7 @@ void main() {
       category: CardCategory.deadline,
       anchors: controller.pendingDraft!.draft.suggestedAnchors,
     );
-    expect(failures, -1); // 权限被拒：卡片保存、提醒未启用
+    expect(failures.permissionDenied, isTrue);
     expect(id, isNotEmpty);
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
@@ -329,7 +393,7 @@ void main() {
     controller.importManualText('报名截止：7月20日 18:00');
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    expect(find.text('确认时效卡片'), findsOneWidget);
+    expect(find.text('确认内容'), findsOneWidget);
   });
 
   testWidgets('冷启动通知深链在首帧打开目标卡片', (tester) async {
@@ -337,7 +401,7 @@ void main() {
     controller.pendingRoute.value = 'freshcue://card/${card.id}';
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    expect(find.text('提醒时间线'), findsOneWidget);
+    expect(find.text('提醒'), findsOneWidget);
   });
 
   testWidgets('通知 complete 行为使卡片完成', (tester) async {

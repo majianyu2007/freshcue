@@ -70,5 +70,35 @@ enum TemporalRole {
 /// 图片导入来源。
 enum ImportSource { share, gallery, camera, demo }
 
+/// 卡片保存后的提醒承载方式。两种方式互斥，避免重复打扰。
+enum DeliveryMode {
+  appReminder('截期提醒'),
+  systemCalendar('系统日程');
+
+  const DeliveryMode(this.label);
+  final String label;
+
+  static DeliveryMode fromName(String name) => DeliveryMode.values.firstWhere(
+    (mode) => mode.name == name,
+    orElse: () => DeliveryMode.appReminder,
+  );
+}
+
+/// 默认提醒数量，只影响新建卡片。
+enum ReminderFrequency {
+  light('少提醒'),
+  standard('标准'),
+  thorough('多提醒');
+
+  const ReminderFrequency(this.label);
+  final String label;
+
+  static ReminderFrequency fromName(String name) =>
+      ReminderFrequency.values.firstWhere(
+        (frequency) => frequency.name == name,
+        orElse: () => ReminderFrequency.standard,
+      );
+}
+
 /// 提醒实例状态。
 enum ReminderStatus { scheduled, fired, snoozed, cancelled, failed }

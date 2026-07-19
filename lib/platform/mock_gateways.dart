@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../core/clock/clock.dart';
+import '../core/errors/app_failure.dart';
 import '../core/utils/id_gen.dart';
 import 'gateways.dart';
 
@@ -158,6 +159,43 @@ class MockReminderGateway implements ReminderGateway {
 
   @override
   Stream<ReminderActionEvent> get actions => _actions.stream;
+}
+
+class MockCalendarGateway implements CalendarGateway {
+  bool available = true;
+  bool permissionGranted = true;
+  int _nextId = 1;
+  final Map<int, CalendarEventPayload> events = {};
+
+  @override
+  Future<bool> isAvailable() async => available;
+
+  @override
+  Future<bool> requestPermissionIfNeeded() async => permissionGranted;
+
+  @override
+  Future<int> createEvent(CalendarEventPayload payload) async {
+    if (!available) throw const AppFailure(FailureCode.calendarUnavailable);
+    if (!permissionGranted) {
+      throw const AppFailure(FailureCode.calendarPermissionDenied);
+    }
+    final id = _nextId++;
+    events[id] = payload;
+    return id;
+  }
+
+  @override
+  Future<void> updateEvent(int eventId, CalendarEventPayload payload) async {
+    if (!events.containsKey(eventId)) {
+      throw const AppFailure(FailureCode.calendarWriteFailed);
+    }
+    events[eventId] = payload;
+  }
+
+  @override
+  Future<void> deleteEvent(int eventId) async {
+    events.remove(eventId);
+  }
 }
 
 class MockFormGateway implements FormGateway {

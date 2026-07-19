@@ -12,7 +12,20 @@ import '../platform/gateways.dart';
 import 'database/image_asset_service.dart';
 
 /// 应用服务：卡片全生命周期编排。
-/// 数据库是提醒意图的事实来源，系统 Reminder Agent 是执行层。
+/// 数据库是提醒意图的事实来源，应用提醒与系统日程是互斥执行层。
+class DeliveryResult {
+  const DeliveryResult({
+    required this.mode,
+    this.failures = 0,
+    this.permissionDenied = false,
+  });
+
+  final DeliveryMode mode;
+  final int failures;
+  final bool permissionDenied;
+  bool get succeeded => failures == 0 && !permissionDenied;
+}
+
 class CardService {
   CardService({
     required this.cards,
@@ -20,6 +33,7 @@ class CardService {
     required this.ocrBlocks,
     required this.reminders,
     required this.reminderGateway,
+    required this.calendarGateway,
     required this.assetService,
     required this.clock,
     this.policy = const ReminderPolicy(),
@@ -31,14 +45,15 @@ class CardService {
   final OcrBlockRepository ocrBlocks;
   final ReminderRepository reminders;
   final ReminderGateway reminderGateway;
+  final CalendarGateway calendarGateway;
   final ImageAssetService assetService;
   final Clock clock;
   ReminderPolicy policy;
   bool showSensitiveCodes;
 
-  /// 确认草稿：保存卡片 + 计划 + 实例，并调度系统提醒。
-  /// 返回调度失败的实例数（>0 时 UI 显示可恢复错误，不假装全部成功）。
-  Future<int> confirmCard(
+  /// 确认草稿：保存卡片与计划，再按用户选择只创建一种提醒。
+  /// 返回可恢复的执行结果，UI 不会把权限拒绝或部分失败假装成成功。
+  Future<DeliveryResult> confirmCard(
     TemporalCard card,
     List<ReminderPlan> plans, {
     List<ReminderInstance>? precomputedInstances,
@@ -61,17 +76,133 @@ class CardService {
     final instances =
         precomputedInstances ??
         policy.expand(confirmed, plans, now, IdGen.newId).instances;
-    return _scheduleAll(confirmed, instances);
+    if (confirmed.deliveryMode == DeliveryMode.systemCalendar) {
+      await reminders.replaceInstances(confirmed.id, const []);
+      return _syncCalendar(confirmed, plans);
+    }
+    final failures = await _scheduleAll(confirmed, instances);
+    return DeliveryResult(mode: DeliveryMode.appReminder, failures: failures);
   }
 
   /// 编辑关键时间后：取消旧提醒 → 重新展开 → 原子化重建。
-  Future<int> rebuildReminders(TemporalCard card) async {
+  Future<DeliveryResult> rebuildDelivery(TemporalCard card) async {
     final now = clock.now();
     await _cancelAllPlatform(card.id);
     final plans = await reminders.plansByCard(card.id);
+    if (card.deliveryMode == DeliveryMode.systemCalendar) {
+      await reminders.replaceInstances(card.id, const []);
+      await cards.save(card.copyWith(updatedAt: now));
+      return _syncCalendar(card, plans);
+    }
     final instances = policy.expand(card, plans, now, IdGen.newId).instances;
     await cards.save(card.copyWith(updatedAt: now));
-    return _scheduleAll(card, instances);
+    final failures = await _scheduleAll(card, instances);
+    return DeliveryResult(mode: DeliveryMode.appReminder, failures: failures);
+  }
+
+  Future<DeliveryResult> _syncCalendar(
+    TemporalCard card,
+    List<ReminderPlan> plans,
+  ) async {
+    if (!await calendarGateway.isAvailable()) {
+      return const DeliveryResult(
+        mode: DeliveryMode.systemCalendar,
+        failures: 1,
+      );
+    }
+    if (!await calendarGateway.requestPermissionIfNeeded()) {
+      return const DeliveryResult(
+        mode: DeliveryMode.systemCalendar,
+        permissionDenied: true,
+      );
+    }
+    final payload = _calendarPayload(card, plans);
+    if (payload == null) {
+      return const DeliveryResult(
+        mode: DeliveryMode.systemCalendar,
+        failures: 1,
+      );
+    }
+    try {
+      final existingId = card.calendarEventId;
+      if (existingId == null) {
+        final eventId = await calendarGateway.createEvent(payload);
+        try {
+          await cards.save(
+            card.copyWith(calendarEventId: eventId, updatedAt: clock.now()),
+          );
+        } on Object {
+          await calendarGateway.deleteEvent(eventId);
+          rethrow;
+        }
+      } else {
+        await calendarGateway.updateEvent(existingId, payload);
+      }
+      return const DeliveryResult(mode: DeliveryMode.systemCalendar);
+    } on AppFailure catch (failure) {
+      AppLog.w('calendar', '写入日程失败: ${failure.code.name}');
+      return DeliveryResult(
+        mode: DeliveryMode.systemCalendar,
+        failures: 1,
+        permissionDenied: failure.code == FailureCode.calendarPermissionDenied,
+      );
+    }
+  }
+
+  CalendarEventPayload? _calendarPayload(
+    TemporalCard card,
+    List<ReminderPlan> plans,
+  ) {
+    final anchor = card.eventStartAt != null
+        ? (TemporalRole.eventStart, card.eventStartAt!)
+        : card.deadlineAt != null
+        ? (TemporalRole.deadline, card.deadlineAt!)
+        : card.expiresAt != null
+        ? (TemporalRole.expiry, card.expiresAt!)
+        : null;
+    if (anchor == null) return null;
+    final start = anchor.$2;
+    final end = card.eventEndAt != null && card.eventEndAt!.isAfter(start)
+        ? card.eventEndAt!
+        : start.add(const Duration(minutes: 30));
+    final otherTimes = card.keyTimes
+        .where((item) => item.$1 != anchor.$1 || item.$2 != anchor.$2)
+        .map((item) => '${item.$1.label}：${_dateText(item.$2)}');
+    final details = <String>[
+      ...otherTimes,
+      if (card.secretValue != null)
+        '码：${showSensitiveCodes ? card.secretValue : Redactor.maskSecret(card.secretValue!)}',
+      if (card.notes != null && card.notes!.trim().isNotEmpty)
+        card.notes!.trim(),
+      '来自截期',
+    ];
+    final reminderMinutes =
+        plans
+            .where(
+              (plan) =>
+                  plan.enabled &&
+                  plan.anchorRole == anchor.$1 &&
+                  plan.offsetMinutes > 0,
+            )
+            .map((plan) => plan.offsetMinutes)
+            .toSet()
+            .toList()
+          ..sort();
+    return CalendarEventPayload(
+      cardId: card.id,
+      title: card.isSensitive && !showSensitiveCodes ? '截期日程' : card.title,
+      startAt: start,
+      endAt: end,
+      description: details.join('\n'),
+      location: card.location,
+      reminderMinutes: reminderMinutes,
+    );
+  }
+
+  String _dateText(DateTime time) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${time.year}-${two(time.month)}-${two(time.day)} '
+        '${two(time.hour)}:${two(time.minute)}';
   }
 
   Future<int> _scheduleAll(
@@ -178,8 +309,19 @@ class CardService {
   Future<void> _setStatus(String cardId, CardStatus status) async {
     final card = await cards.findById(cardId);
     if (card == null) throw const AppFailure(FailureCode.cardNotFound);
-    if (status != CardStatus.active) await _cancelAllPlatform(cardId);
-    await cards.save(card.copyWith(status: status, updatedAt: clock.now()));
+    if (status != CardStatus.active) {
+      await _cancelAllPlatform(cardId);
+      await _deleteCalendarEvent(card);
+    }
+    await cards.save(
+      card.copyWith(
+        status: status,
+        updatedAt: clock.now(),
+        calendarEventId: status == CardStatus.active
+            ? card.calendarEventId
+            : null,
+      ),
+    );
   }
 
   /// 删除：先取消系统提醒 → 删数据库关联 → 删沙箱图片。
@@ -187,6 +329,7 @@ class CardService {
     final card = await cards.findById(cardId);
     if (card == null) return;
     await _cancelAllPlatform(cardId);
+    await _deleteCalendarEvent(card);
     await reminders.deleteByCard(cardId);
     await ocrBlocks.deleteByCard(cardId);
     final assetId = card.sourceAssetId;
@@ -197,6 +340,16 @@ class CardService {
         await assets.delete(assetId);
         assetService.deleteFiles(asset); // 只删沙箱副本，不碰图库
       }
+    }
+  }
+
+  Future<void> _deleteCalendarEvent(TemporalCard card) async {
+    final eventId = card.calendarEventId;
+    if (eventId == null) return;
+    try {
+      await calendarGateway.deleteEvent(eventId);
+    } on AppFailure catch (failure) {
+      AppLog.w('calendar', '删除日程失败: ${failure.code.name}');
     }
   }
 

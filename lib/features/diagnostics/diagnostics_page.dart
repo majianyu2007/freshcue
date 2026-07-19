@@ -96,6 +96,7 @@ class DiagnosticsPage extends StatelessWidget {
       'share': '分享接收',
       'harmonyShare': '碰一碰 / 隔空分享',
       'reminders': '代理提醒',
+      'calendar': '系统日程',
       'liveActivity': '实况窗',
       'forms': '服务卡片',
       'database': '数据库',

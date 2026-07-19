@@ -8,11 +8,13 @@ class ReminderPolicy {
     this.quietHoursEnabled = true,
     this.quietStartHour = 23,
     this.quietEndHour = 7,
+    this.frequency = ReminderFrequency.standard,
   });
 
   final bool quietHoursEnabled;
   final int quietStartHour;
   final int quietEndHour;
+  final ReminderFrequency frequency;
 
   /// 按分类生成默认提醒意图（分钟提前量；0=准时）。
   List<ReminderPlan> defaultPlans(TemporalCard card, String Function() newId) {
@@ -74,7 +76,28 @@ class ReminderPolicy {
       case CardCategory.generic:
         add(TemporalRole.expiry, 60);
     }
-    return plans;
+    return _applyFrequency(plans);
+  }
+
+  List<ReminderPlan> _applyFrequency(List<ReminderPlan> plans) {
+    if (frequency == ReminderFrequency.thorough || plans.length <= 1) {
+      return plans;
+    }
+    final byRole = <TemporalRole, List<ReminderPlan>>{};
+    for (final plan in plans) {
+      byRole.putIfAbsent(plan.anchorRole, () => []).add(plan);
+    }
+    return [
+      for (final group in byRole.values)
+        if (frequency == ReminderFrequency.light)
+          group.last
+        else if (group.length <= 2)
+          ...group
+        else ...[
+          group.first,
+          group.last,
+        ],
+    ];
   }
 
   /// 将意图展开为绝对触发时间的实例。

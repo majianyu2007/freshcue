@@ -16,6 +16,7 @@ void main() {
   late MemoryCardRepository cards;
   late MemoryReminderRepository reminders;
   late MockReminderGateway gateway;
+  late MockCalendarGateway calendarGateway;
   late CardService service;
 
   setUp(() {
@@ -23,12 +24,14 @@ void main() {
     cards = MemoryCardRepository();
     reminders = MemoryReminderRepository();
     gateway = MockReminderGateway(clock);
+    calendarGateway = MockCalendarGateway();
     service = CardService(
       cards: cards,
       assets: MemoryAssetRepository(),
       ocrBlocks: MemoryOcrBlockRepository(),
       reminders: reminders,
       reminderGateway: gateway,
+      calendarGateway: calendarGateway,
       assetService: ImageAssetService(sandboxDir: '/tmp/unused'),
       clock: clock,
     );
@@ -48,13 +51,67 @@ void main() {
   test('确认卡片：状态 active + 全部提醒调度成功', () async {
     final c = card();
     final plans = const ReminderPolicy().defaultPlans(c, IdGen.newId);
-    final failures = await service.confirmCard(c, plans);
-    expect(failures, 0);
+    final result = await service.confirmCard(c, plans);
+    expect(result.failures, 0);
     expect((await cards.findById('c1'))!.status, CardStatus.active);
     final instances = await reminders.instancesByCard('c1');
     expect(instances, isNotEmpty);
     expect(instances.every((i) => i.platformReminderId != null), isTrue);
     expect(gateway.scheduled.length, instances.length);
+  });
+
+  test('选择系统日程：创建事件且不再创建应用提醒', () async {
+    final c = card().copyWith(deliveryMode: DeliveryMode.systemCalendar);
+    final plans = const ReminderPolicy().defaultPlans(c, IdGen.newId);
+
+    final result = await service.confirmCard(c, plans);
+
+    expect(result.succeeded, isTrue);
+    expect(gateway.scheduled, isEmpty);
+    expect(await reminders.instancesByCard('c1'), isEmpty);
+    expect(calendarGateway.events, hasLength(1));
+    final saved = (await cards.findById('c1'))!;
+    expect(saved.calendarEventId, isNotNull);
+    final event = calendarGateway.events[saved.calendarEventId]!;
+    expect(event.title, '测试活动');
+    expect(event.startAt, DateTime(2026, 7, 25, 14));
+    expect(event.reminderMinutes, containsAll(<int>[10, 1440]));
+  });
+
+  test('系统日程：改时间更新原事件，删卡片同步删除', () async {
+    final c = card().copyWith(deliveryMode: DeliveryMode.systemCalendar);
+    await service.confirmCard(
+      c,
+      const ReminderPolicy().defaultPlans(c, IdGen.newId),
+    );
+    final saved = (await cards.findById('c1'))!;
+    final eventId = saved.calendarEventId!;
+
+    final edited = saved.copyWith(eventStartAt: DateTime(2026, 7, 26, 9));
+    final result = await service.rebuildDelivery(edited);
+
+    expect(result.succeeded, isTrue);
+    expect(calendarGateway.events, hasLength(1));
+    expect(calendarGateway.events[eventId]!.startAt, DateTime(2026, 7, 26, 9));
+
+    await service.deleteCard('c1');
+    expect(calendarGateway.events, isEmpty);
+    expect(await cards.findById('c1'), isNull);
+  });
+
+  test('系统日程权限被拒：保留卡片并返回可恢复状态', () async {
+    calendarGateway.permissionGranted = false;
+    final c = card().copyWith(deliveryMode: DeliveryMode.systemCalendar);
+
+    final result = await service.confirmCard(
+      c,
+      const ReminderPolicy().defaultPlans(c, IdGen.newId),
+    );
+
+    expect(result.permissionDenied, isTrue);
+    expect((await cards.findById('c1'))!.status, CardStatus.active);
+    expect(calendarGateway.events, isEmpty);
+    expect(gateway.scheduled, isEmpty);
   });
 
   test('敏感码在通知与锁屏载荷中直接显示', () async {
@@ -101,7 +158,7 @@ void main() {
     final edited = (await cards.findById(
       'c1',
     ))!.copyWith(eventStartAt: DateTime(2026, 7, 26, 9, 0));
-    await service.rebuildReminders(edited);
+    await service.rebuildDelivery(edited);
 
     expect(gateway.scheduled.keys.toSet().intersection(oldIds), isEmpty);
     final instances = await reminders.instancesByCard('c1');
@@ -190,15 +247,16 @@ void main() {
       ocrBlocks: MemoryOcrBlockRepository(),
       reminders: reminders,
       reminderGateway: failing,
+      calendarGateway: calendarGateway,
       assetService: ImageAssetService(sandboxDir: '/tmp/unused'),
       clock: clock,
     );
     final c = card();
-    final failures = await svc.confirmCard(
+    final result = await svc.confirmCard(
       c,
       const ReminderPolicy().defaultPlans(c, IdGen.newId),
     );
-    expect(failures, greaterThan(0));
+    expect(result.failures, greaterThan(0));
     final all = await reminders.instancesByCard('c1');
     expect(all.every((i) => i.status == ReminderStatus.failed), isTrue);
     expect(all.first.failureReason, isNotNull);

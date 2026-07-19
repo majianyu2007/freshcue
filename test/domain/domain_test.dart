@@ -72,23 +72,37 @@ void main() {
     const policy = ReminderPolicy();
     String nid() => IdGen.newId();
 
-    test('event 默认模板展开（1天/1小时/10分钟 + 截止2项）', () {
+    test('event 标准频率保留每类关键节点', () {
       final c = card(
         start: now.add(const Duration(days: 10)),
         deadline: now.add(const Duration(days: 5)),
       );
       final plans = policy.defaultPlans(c, nid);
-      expect(plans.length, 5);
+      expect(plans.length, 4);
       final r = policy.expand(c, plans, now, nid);
-      expect(r.instances.length, 5);
+      expect(r.instances.length, 4);
     });
 
     test('跳过已过去的提醒，不影响其他实例', () {
+      const thorough = ReminderPolicy(frequency: ReminderFrequency.thorough);
       final c = card(start: now.add(const Duration(hours: 5)));
-      final plans = policy.defaultPlans(c, nid); // 提前1天已不可能
-      final r = policy.expand(c, plans, now, nid);
+      final plans = thorough.defaultPlans(c, nid); // 提前1天已不可能
+      final r = thorough.expand(c, plans, now, nid);
       expect(r.instances.length, 2); // 1小时 + 10分钟
       expect(r.notes.join(), contains('已跳过'));
+    });
+
+    test('提醒频率会实际改变计划数量', () {
+      final c = card(
+        start: now.add(const Duration(days: 10)),
+        deadline: now.add(const Duration(days: 5)),
+      );
+      const light = ReminderPolicy(frequency: ReminderFrequency.light);
+      const standard = ReminderPolicy();
+      const thorough = ReminderPolicy(frequency: ReminderFrequency.thorough);
+      expect(light.defaultPlans(c, nid), hasLength(2));
+      expect(standard.defaultPlans(c, nid), hasLength(4));
+      expect(thorough.defaultPlans(c, nid), hasLength(5));
     });
 
     test('同一触发时间去重', () {

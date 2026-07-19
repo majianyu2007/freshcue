@@ -243,6 +243,36 @@ abstract interface class ReminderGateway {
   Stream<ReminderActionEvent> get actions;
 }
 
+/// 系统日程载荷（channel: freshcue/calendar）。
+class CalendarEventPayload {
+  const CalendarEventPayload({
+    required this.cardId,
+    required this.title,
+    required this.startAt,
+    required this.endAt,
+    this.description,
+    this.location,
+    this.reminderMinutes = const [],
+  });
+
+  final String cardId;
+  final String title;
+  final DateTime startAt;
+  final DateTime endAt;
+  final String? description;
+  final String? location;
+  final List<int> reminderMinutes;
+}
+
+/// Calendar Kit 网关。只在用户选择“系统日程”时请求日历权限。
+abstract interface class CalendarGateway {
+  Future<bool> isAvailable();
+  Future<bool> requestPermissionIfNeeded();
+  Future<int> createEvent(CalendarEventPayload payload);
+  Future<void> updateEvent(int eventId, CalendarEventPayload payload);
+  Future<void> deleteEvent(int eventId);
+}
+
 /// 服务卡片仅接收展示所需的快照，不访问 Flutter 数据库。
 class FormCardSnapshot {
   const FormCardSnapshot({

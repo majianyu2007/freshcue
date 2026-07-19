@@ -71,6 +71,7 @@ class AppController extends ChangeNotifier {
     required this.ocr,
     required this.share,
     required this.reminderGateway,
+    required this.calendarGateway,
     required this.formGateway,
     required this.clock,
     required this.usingMockPlatform,
@@ -89,6 +90,7 @@ class AppController extends ChangeNotifier {
   final OcrGateway ocr;
   final ShareGateway share;
   final ReminderGateway reminderGateway;
+  final CalendarGateway calendarGateway;
   final FormGateway formGateway;
   final Clock clock;
   final bool usingMockPlatform;
@@ -116,6 +118,8 @@ class AppController extends ChangeNotifier {
   int quietStartHour = 23;
   int quietEndHour = 7;
   bool showSensitiveCodes = true;
+  DeliveryMode defaultDeliveryMode = DeliveryMode.appReminder;
+  ReminderFrequency reminderFrequency = ReminderFrequency.standard;
 
   Future<void> refreshOcrModelStatus() async {
     ocrModelStatus = await ocr.getModelStatus();
@@ -190,7 +194,9 @@ class AppController extends ChangeNotifier {
     await settings.set('quiet_end_hour', '$endHour');
     var failures = 0;
     for (final card in activeCards) {
-      failures += await cardService.rebuildReminders(card);
+      if (card.deliveryMode == DeliveryMode.appReminder) {
+        failures += (await cardService.rebuildDelivery(card)).failures;
+      }
     }
     await refresh();
     return failures;
@@ -201,6 +207,19 @@ class AppController extends ChangeNotifier {
     _applyPreferences();
     await settings.set('show_sensitive_codes', value ? '1' : '0');
     await refresh();
+  }
+
+  Future<void> setDefaultDeliveryMode(DeliveryMode mode) async {
+    defaultDeliveryMode = mode;
+    await settings.set('default_delivery_mode', mode.name);
+    notifyListeners();
+  }
+
+  Future<void> setReminderFrequency(ReminderFrequency frequency) async {
+    reminderFrequency = frequency;
+    _applyPreferences();
+    await settings.set('reminder_frequency', frequency.name);
+    notifyListeners();
   }
 
   String displaySecret(String secret) =>
@@ -226,6 +245,12 @@ class AppController extends ChangeNotifier {
     quietEndHour =
         int.tryParse(await settings.get('quiet_end_hour') ?? '') ?? 7;
     showSensitiveCodes = await settings.get('show_sensitive_codes') != '0';
+    defaultDeliveryMode = DeliveryMode.fromName(
+      await settings.get('default_delivery_mode') ?? '',
+    );
+    reminderFrequency = ReminderFrequency.fromName(
+      await settings.get('reminder_frequency') ?? '',
+    );
     _applyPreferences();
     notificationPermissionGranted = await reminderGateway
         .getNotificationPermissionStatus();
@@ -250,6 +275,7 @@ class AppController extends ChangeNotifier {
       quietHoursEnabled: quietHoursEnabled,
       quietStartHour: quietStartHour,
       quietEndHour: quietEndHour,
+      frequency: reminderFrequency,
     );
     cardService.showSensitiveCodes = showSensitiveCodes;
   }
@@ -484,8 +510,8 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 确认草稿：写库 + 调度提醒。返回 (cardId, 调度失败数)。
-  Future<(String, int)> confirmDraft({
+  /// 确认草稿：写库后只启用用户选择的一种承载方式。
+  Future<(String, DeliveryResult)> confirmDraft({
     required String title,
     required CardCategory category,
     String? location,
@@ -495,6 +521,7 @@ class AppController extends ChangeNotifier {
     bool includePrimary = true,
     Set<int> additionalDraftIndexes = const {},
     String? notes,
+    DeliveryMode? deliveryMode,
   }) async {
     final ctx = pendingDraft!;
     final now = clock.now();
@@ -510,7 +537,9 @@ class AppController extends ChangeNotifier {
       );
     }
 
-    Future<(String, int)> saveCard({
+    final selectedMode = deliveryMode ?? defaultDeliveryMode;
+
+    Future<(String, DeliveryResult)> saveCard({
       required ParsedDraft draft,
       required String cardTitle,
       required CardCategory cardCategory,
@@ -518,6 +547,7 @@ class AppController extends ChangeNotifier {
       String? cardSecret,
       required Map<TemporalRole, DateTime> cardAnchors,
       List<ReminderPlan>? plansOverride,
+      required DeliveryMode mode,
     }) async {
       final id = IdGen.newId();
       final card = TemporalCard(
@@ -540,20 +570,24 @@ class AppController extends ChangeNotifier {
         isSensitive:
             cardSecret != null || cardCategory == CardCategory.temporarySecret,
         notes: notes,
+        deliveryMode: mode,
       );
       final plans =
           plansOverride ?? reminderPolicy.defaultPlans(card, IdGen.newId);
-      var cardFailures = 0;
-      if (plans.isNotEmpty) {
+      DeliveryResult delivery;
+      if (mode == DeliveryMode.appReminder && plans.isNotEmpty) {
         final granted = await reminderGateway.requestPermissionIfNeeded();
         if (!granted) {
           await cardService.confirmCard(card, plans, precomputedInstances: []);
-          cardFailures = -1;
+          delivery = const DeliveryResult(
+            mode: DeliveryMode.appReminder,
+            permissionDenied: true,
+          );
         } else {
-          cardFailures = await cardService.confirmCard(card, plans);
+          delivery = await cardService.confirmCard(card, plans);
         }
       } else {
-        cardFailures = await cardService.confirmCard(card, plans);
+        delivery = await cardService.confirmCard(card, plans);
       }
       if (ctx.blocks.isNotEmpty) {
         await ocrBlocks.saveAll(id, [
@@ -570,11 +604,11 @@ class AppController extends ChangeNotifier {
             ),
         ]);
       }
-      return (id, cardFailures);
+      return (id, delivery);
     }
 
     String? cardId;
-    var failures = 0;
+    var delivery = DeliveryResult(mode: selectedMode);
     if (includePrimary) {
       final saved = await saveCard(
         draft: ctx.draft,
@@ -584,9 +618,10 @@ class AppController extends ChangeNotifier {
         cardSecret: secretValue,
         cardAnchors: anchors,
         plansOverride: customPlans,
+        mode: selectedMode,
       );
       cardId = saved.$1;
-      failures = saved.$2;
+      delivery = saved.$2;
     }
     for (final index in additionalDraftIndexes.toList()..sort()) {
       if (index <= 0 || index >= ctx.drafts.length) continue;
@@ -598,11 +633,15 @@ class AppController extends ChangeNotifier {
         cardLocation: draft.location,
         cardSecret: draft.secretValue,
         cardAnchors: draft.suggestedAnchors,
+        mode: selectedMode,
       );
       cardId ??= saved.$1;
-      if (failures != -1) {
-        failures = saved.$2 == -1 ? -1 : failures + saved.$2;
-      }
+      delivery = DeliveryResult(
+        mode: selectedMode,
+        failures: delivery.failures + saved.$2.failures,
+        permissionDenied:
+            delivery.permissionDenied || saved.$2.permissionDenied,
+      );
     }
     if (cardId == null) {
       throw const AppFailure(
@@ -614,7 +653,7 @@ class AppController extends ChangeNotifier {
     pendingDraft = null;
     importStage = ImportStage.idle;
     await refresh();
-    return (cardId, failures);
+    return (cardId, delivery);
   }
 
   Future<void> completeCard(String id) async {
@@ -637,10 +676,10 @@ class AppController extends ChangeNotifier {
     await refresh();
   }
 
-  Future<int> updateCardTimes(TemporalCard updated) async {
-    final failures = await cardService.rebuildReminders(updated);
+  Future<DeliveryResult> updateCardTimes(TemporalCard updated) async {
+    final result = await cardService.rebuildDelivery(updated);
     await refresh();
-    return failures;
+    return result;
   }
 
   void _setStage(ImportStage s) {
@@ -656,6 +695,7 @@ AppController createMemoryAppController({
   required OcrGateway ocr,
   required ShareGateway share,
   required ReminderGateway reminderGateway,
+  required CalendarGateway calendarGateway,
   required FormGateway formGateway,
   required String sandboxDir,
   bool usingMockPlatform = true,
@@ -678,6 +718,7 @@ AppController createMemoryAppController({
       ocrBlocks: blocks,
       reminders: reminders,
       reminderGateway: reminderGateway,
+      calendarGateway: calendarGateway,
       assetService: assetService,
       clock: clock,
     ),
@@ -685,6 +726,7 @@ AppController createMemoryAppController({
     ocr: ocr,
     share: share,
     reminderGateway: reminderGateway,
+    calendarGateway: calendarGateway,
     formGateway: formGateway,
     clock: clock,
     usingMockPlatform: usingMockPlatform,
@@ -699,6 +741,7 @@ AppController createSqlAppController({
   required OcrGateway ocr,
   required ShareGateway share,
   required ReminderGateway reminderGateway,
+  required CalendarGateway calendarGateway,
   required FormGateway formGateway,
   required String sandboxDir,
   bool usingMockPlatform = false,
@@ -721,6 +764,7 @@ AppController createSqlAppController({
       ocrBlocks: blocks,
       reminders: reminders,
       reminderGateway: reminderGateway,
+      calendarGateway: calendarGateway,
       assetService: assetService,
       clock: clock,
     ),
@@ -728,6 +772,7 @@ AppController createSqlAppController({
     ocr: ocr,
     share: share,
     reminderGateway: reminderGateway,
+    calendarGateway: calendarGateway,
     formGateway: formGateway,
     clock: clock,
     usingMockPlatform: usingMockPlatform,

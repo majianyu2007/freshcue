@@ -19,6 +19,10 @@
     {
       "name": "freshcue_form_desc",
       "value": "显示最近的未完成时效卡片"
+    },
+    {
+      "name": "calendar_permission_reason",
+      "value": "用于把你选择的时效卡片写入系统日程，并在改时间或删除时保持同步"
     }
   ]
 }

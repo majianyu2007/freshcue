@@ -17,6 +17,7 @@ class PlatformRegistry {
     required this.ocr,
     required this.share,
     required this.reminders,
+    required this.calendar,
     required this.forms,
     required this.usingMocks,
     required this.capabilities,
@@ -25,6 +26,7 @@ class PlatformRegistry {
   final OcrGateway ocr;
   final ShareGateway share;
   final ReminderGateway reminders;
+  final CalendarGateway calendar;
   final FormGateway forms;
   final bool usingMocks;
   final PlatformCapabilities capabilities;
@@ -52,6 +54,7 @@ class PlatformRegistry {
         ocr: MockOcrGateway(),
         share: MockShareGateway(),
         reminders: MockReminderGateway(clock),
+        calendar: MockCalendarGateway(),
         forms: MockFormGateway(),
         usingMocks: true,
         capabilities: caps,
@@ -61,6 +64,7 @@ class PlatformRegistry {
       ocr: ChannelOcrGateway(),
       share: ChannelShareGateway(),
       reminders: ChannelReminderGateway(),
+      calendar: ChannelCalendarGateway(),
       forms: ChannelFormGateway(),
       usingMocks: false,
       capabilities: caps,

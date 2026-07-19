@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
+import '../../domain/enums/enums.dart';
 import '../../platform/gateways.dart';
 import '../diagnostics/diagnostics_page.dart';
 
@@ -21,8 +22,8 @@ class SettingsPage extends StatelessWidget {
             icon: Icons.notifications_active_outlined,
             title: '提醒',
             subtitle:
-                '${controller.notificationPermissionGranted == true ? '通知已开启' : '通知未开启'} · '
-                '${controller.quietHoursEnabled ? '${_hour(controller.quietStartHour)} – ${_hour(controller.quietEndHour)} 安静时段' : '安静时段已关闭'}',
+                '默认用${controller.defaultDeliveryMode.label} · '
+                '${controller.reminderFrequency.label}',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute<void>(
@@ -141,6 +142,71 @@ class ReminderSettingsPage extends StatelessWidget {
     );
   }
 
+  Future<void> _chooseDelivery(BuildContext context) async {
+    final selected = await showModalBottomSheet<DeliveryMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text('新卡片默认怎么提醒'),
+              subtitle: Text('每次保存前仍可临时更改'),
+            ),
+            for (final mode in DeliveryMode.values)
+              ListTile(
+                title: Text(mode.label),
+                subtitle: Text(
+                  mode == DeliveryMode.appReminder
+                      ? '在截期里统一管理，支持稍后提醒'
+                      : '写入系统日历，由日历负责提醒',
+                ),
+                trailing: Icon(
+                  controller.defaultDeliveryMode == mode
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                ),
+                onTap: () => Navigator.pop(context, mode),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) await controller.setDefaultDeliveryMode(selected);
+  }
+
+  Future<void> _chooseFrequency(BuildContext context) async {
+    final selected = await showModalBottomSheet<ReminderFrequency>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('默认提醒几次'), subtitle: Text('只影响之后新建的卡片')),
+            for (final frequency in ReminderFrequency.values)
+              ListTile(
+                title: Text(frequency.label),
+                subtitle: Text(switch (frequency) {
+                  ReminderFrequency.light => '每个重要时间只提醒一次',
+                  ReminderFrequency.standard => '留一次提前提醒和一次临近提醒',
+                  ReminderFrequency.thorough => '保留所有建议提醒',
+                }),
+                trailing: Icon(
+                  controller.reminderFrequency == frequency
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                ),
+                onTap: () => Navigator.pop(context, frequency),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) await controller.setReminderFrequency(selected);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('提醒')),
@@ -148,6 +214,25 @@ class ReminderSettingsPage extends StatelessWidget {
       listenable: controller,
       builder: (context, _) => ListView(
         children: [
+          const _SectionHeader('新卡片'),
+          ListTile(
+            leading: Icon(
+              controller.defaultDeliveryMode == DeliveryMode.appReminder
+                  ? Icons.notifications_active_outlined
+                  : Icons.calendar_month_outlined,
+            ),
+            title: const Text('默认方式'),
+            subtitle: Text(controller.defaultDeliveryMode.label),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _chooseDelivery(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune_outlined),
+            title: const Text('提醒次数'),
+            subtitle: Text(controller.reminderFrequency.label),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _chooseFrequency(context),
+          ),
           const _SectionHeader('系统通知'),
           ListTile(
             leading: Icon(

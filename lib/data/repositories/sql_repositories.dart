@@ -70,6 +70,8 @@ class SqlCardRepository implements CardRepository {
     'overall_confidence': c.overallConfidence,
     'is_sensitive': c.isSensitive ? 1 : 0,
     'notes': c.notes,
+    'delivery_mode': c.deliveryMode.name,
+    'calendar_event_id': c.calendarEventId,
   }, conflictAlgorithm: ConflictAlgorithm.replace);
 
   @override
@@ -97,6 +99,10 @@ class SqlCardRepository implements CardRepository {
     overallConfidence: (r['overall_confidence'] as num?)?.toDouble() ?? 1.0,
     isSensitive: (r['is_sensitive'] as int? ?? 0) == 1,
     notes: r['notes'] as String?,
+    deliveryMode: DeliveryMode.fromName(
+      r['delivery_mode'] as String? ?? DeliveryMode.appReminder.name,
+    ),
+    calendarEventId: r['calendar_event_id'] as int?,
   );
 }
 

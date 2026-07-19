@@ -92,6 +92,33 @@ class _CardDetailPageState extends State<CardDetailPage> {
           ),
         ],
       ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                icon: const Icon(Icons.check),
+                label: const Text('完成'),
+                onPressed: card.status == CardStatus.active
+                    ? () async {
+                        await widget.controller.completeCard(card.id);
+                        if (context.mounted) Navigator.pop(context);
+                      }
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                icon: const Icon(Icons.edit_calendar_outlined),
+                label: const Text('改时间'),
+                onPressed: () => _editTime(card),
+              ),
+            ),
+          ],
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -164,34 +191,14 @@ class _CardDetailPageState extends State<CardDetailPage> {
               dense: true,
             ),
           const SizedBox(height: 8),
-          Text('提醒时间线', style: Theme.of(context).textTheme.titleMedium),
-          _reminderTimeline(card, now),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.check),
-                  label: const Text('完成'),
-                  onPressed: card.status == CardStatus.active
-                      ? () async {
-                          await widget.controller.completeCard(card.id);
-                          if (context.mounted) Navigator.pop(context);
-                        }
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.edit_calendar_outlined),
-                  label: const Text('改时间'),
-                  onPressed: () => _editTime(card),
-                ),
-              ),
-            ],
+          Text(
+            card.deliveryMode == DeliveryMode.systemCalendar ? '系统日程' : '提醒',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 32),
+          card.deliveryMode == DeliveryMode.systemCalendar
+              ? _calendarStatus(card)
+              : _reminderTimeline(card, now),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -346,6 +353,42 @@ class _CardDetailPageState extends State<CardDetailPage> {
     },
   );
 
+  Widget _calendarStatus(TemporalCard card) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(
+      card.calendarEventId == null
+          ? Icons.event_busy_outlined
+          : Icons.event_available_outlined,
+    ),
+    title: Text(card.calendarEventId == null ? '还没有加入系统日程' : '已加入系统日程'),
+    subtitle: Text(
+      card.calendarEventId == null ? '允许日历权限后可再试一次' : '改时间、完成或删除卡片时会一起更新',
+    ),
+    trailing: card.calendarEventId == null
+        ? TextButton(
+            onPressed: () => _retryDelivery(card),
+            child: const Text('重试'),
+          )
+        : null,
+  );
+
+  Future<void> _retryDelivery(TemporalCard card) async {
+    final result = await widget.controller.updateCardTimes(card);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.succeeded
+              ? '已加入系统日程'
+              : result.permissionDenied
+              ? '需要先允许日历权限'
+              : '还没有写入日程，请稍后重试',
+        ),
+      ),
+    );
+    setState(() {});
+  }
+
   Future<void> _editTime(TemporalCard card) async {
     final now = widget.controller.clock.now();
     final next = card.nextKeyTime(now) ?? card.keyTimes.firstOrNull;
@@ -377,12 +420,18 @@ class _CardDetailPageState extends State<CardDetailPage> {
       TemporalRole.expiry => card.copyWith(expiresAt: newAt),
       _ => card.copyWith(expiresAt: newAt),
     };
-    final failures = await widget.controller.updateCardTimes(updated);
+    final result = await widget.controller.updateCardTimes(updated);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            failures > 0 ? '时间已更新，$failures 条提醒重建失败' : '时间已更新，提醒已重建',
+            result.succeeded
+                ? card.deliveryMode == DeliveryMode.systemCalendar
+                      ? '时间已更新，系统日程也已同步'
+                      : '时间已更新'
+                : card.deliveryMode == DeliveryMode.systemCalendar
+                ? '时间已保存，但系统日程还没同步'
+                : '时间已保存，部分提醒需要稍后重试',
           ),
         ),
       );

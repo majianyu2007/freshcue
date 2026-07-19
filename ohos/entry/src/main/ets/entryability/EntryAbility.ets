@@ -8,10 +8,12 @@ import { OcrPlugin } from '../plugins/OcrPlugin';
 import { SharePlugin } from '../plugins/SharePlugin';
 import { ReminderPlugin } from '../plugins/ReminderPlugin';
 import { FormPlugin } from '../plugins/FormPlugin';
+import { CalendarPlugin } from '../plugins/CalendarPlugin';
 
 export default class EntryAbility extends FlutterAbility {
   private sharePlugin: SharePlugin = new SharePlugin();
   private reminderPlugin: ReminderPlugin = new ReminderPlugin();
+  private calendarPlugin: CalendarPlugin = new CalendarPlugin();
 
   configureFlutterEngine(flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
@@ -22,6 +24,8 @@ export default class EntryAbility extends FlutterAbility {
     flutterEngine.getPlugins()?.add(this.sharePlugin)
     this.reminderPlugin.setAbilityContext(this.context)
     flutterEngine.getPlugins()?.add(this.reminderPlugin)
+    this.calendarPlugin.setAbilityContext(this.context)
+    flutterEngine.getPlugins()?.add(this.calendarPlugin)
     flutterEngine.getPlugins()?.add(new FormPlugin())
     // 冷启动：引擎就绪后用启动 Want 尝试分发（分享内容或通知深链）。
     this.dispatchWant(this.getWant(), true)

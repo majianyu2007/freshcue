@@ -23,6 +23,8 @@ class TemporalCard {
     this.overallConfidence = 1.0,
     this.isSensitive = false,
     this.notes,
+    this.deliveryMode = DeliveryMode.appReminder,
+    this.calendarEventId,
   });
 
   final String id;
@@ -49,6 +51,8 @@ class TemporalCard {
   final double overallConfidence;
   final bool isSensitive;
   final String? notes;
+  final DeliveryMode deliveryMode;
+  final int? calendarEventId;
 
   /// 按角色取锚点时间。
   DateTime? anchorFor(TemporalRole role) => switch (role) {
@@ -105,6 +109,8 @@ class TemporalCard {
     double? overallConfidence,
     bool? isSensitive,
     String? notes,
+    DeliveryMode? deliveryMode,
+    Object? calendarEventId = _sentinel,
   }) => TemporalCard(
     id: id,
     title: title ?? this.title,
@@ -134,6 +140,10 @@ class TemporalCard {
     overallConfidence: overallConfidence ?? this.overallConfidence,
     isSensitive: isSensitive ?? this.isSensitive,
     notes: notes ?? this.notes,
+    deliveryMode: deliveryMode ?? this.deliveryMode,
+    calendarEventId: calendarEventId == _sentinel
+        ? this.calendarEventId
+        : calendarEventId as int?,
   );
 
   static const _sentinel = Object();

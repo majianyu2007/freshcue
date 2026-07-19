@@ -16,6 +16,7 @@ void main() {
     );
     expect(reg.usingMocks, isTrue);
     expect(reg.ocr, isA<MockOcrGateway>());
+    expect(reg.calendar, isA<MockCalendarGateway>());
     expect(reg.capabilities.bridged, isFalse);
   });
 
@@ -31,6 +32,7 @@ void main() {
     );
     expect(reg.usingMocks, isFalse);
     expect(reg.ocr, isNot(isA<MockOcrGateway>()));
+    expect(reg.calendar, isNot(isA<MockCalendarGateway>()));
   });
 
   test('forceMock=true 在测试（非 Release）下允许', () async {
